@@ -1,0 +1,29 @@
+{
+  "name": "prx-workspace",
+  "version": "0.1.1",
+  "description": "projax - Cross-platform project management dashboard with CLI and web interface",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build:core && npm run build:cli && npm run build:electron",
+    "build:core": "npm run build --workspace=packages/core",
+    "build:cli": "npm run build --workspace=packages/cli",
+    "build:electron": "npm run build --workspace=packages/electron",
+    "dev:electron": "npm run dev --workspace=packages/electron",
+    "clean": "npm run clean --workspaces && rm -rf node_modules",
+    "postinstall": "npm run build:core && npm run rebuild:sqlite",
+    "rebuild:sqlite": "npm rebuild better-sqlite3 --workspace=packages/core --build-from-source"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0"
+  }
+}
