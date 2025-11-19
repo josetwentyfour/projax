@@ -73,6 +73,21 @@ async function main() {
   // 3. Build all packages
   exec('npm run build', 'Build all packages');
 
+  // 3.5 Test with npm link
+  console.log('\n🧪 Testing commands with npm link...');
+  exec('cd packages/cli && npm link', 'Link CLI for testing');
+  
+  console.log('\n  Testing core commands:');
+  exec('prx --version', '  - prx --version');
+  exec('prx list', '  - prx list');
+  exec('prx api', '  - prx api');
+  exec('prx web --help', '  - prx web --help');
+  exec('prx docs --help', '  - prx docs --help');
+  
+  console.log('\n  Testing prxi (Terminal UI):');
+  console.log('  ℹ️  Skipping interactive test for prx i (requires TTY)');
+  console.log('  ✓ All commands tested successfully\n');
+
   // 4. Commit changes
   const commitMsg = await question(`\nCommit message [Release v${newVersion}]: `) || `Release v${newVersion}`;
   exec('git add -A', 'Stage changes');

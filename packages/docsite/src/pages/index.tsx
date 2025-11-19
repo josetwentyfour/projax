@@ -31,8 +31,13 @@ function HomepageHeader() {
               View on GitHub
             </Link>
           </div>
+          <span>Install</span>
           <div className={styles.installCommand}>
             <code>npm install -g projax</code>
+          </div>
+          <span>or try it out</span>
+          <div className={styles.installCommand}>
+            <code>npx projax@latest</code>
           </div>
         </div>
       </div>

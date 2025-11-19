@@ -208,11 +208,10 @@ program
     try {
       await ensureAPIServerRunning(true);
       
-      // Find the prxi source file - check multiple locations
+      // Find the prxi source file - use CLI's embedded prxi.tsx
       const prxiPaths = [
-        path.join(__dirname, 'prxi', 'src', 'index.tsx'), // When running from built/published CLI
-        path.join(__dirname, '..', '..', 'prxi', 'src', 'index.tsx'), // When running from workspace
-        path.join(__dirname, '..', 'src', 'prxi.tsx'), // Legacy location
+        path.join(__dirname, '..', 'src', 'prxi.tsx'), // Development (packages/cli/src/prxi.tsx)
+        path.join(__dirname, 'prxi.tsx'), // When running from dist
       ];
       
       const prxiPath = prxiPaths.find(p => fs.existsSync(p));
@@ -237,28 +236,40 @@ program
         process.exit(1);
       }
       
-      // Run prxi using npm run dev
+      // Run prxi using node with tsx/esm loader for proper ESM support
       const { spawn} = require('child_process');
       
       // Get the prxi package directory (prxi/src/index.tsx -> prxi)
       const prxiPackageDir = path.dirname(path.dirname(prxiPath));
-      const prxiPackageJson = path.join(prxiPackageDir, 'package.json');
       
-      // If in workspace (package.json exists), use npm run dev for proper module resolution
-      if (fs.existsSync(prxiPackageJson)) {
-        const child = spawn('npm', ['run', 'dev'], {
+      // Try to find tsx loader module paths
+      const tsxLoaderPaths = [
+        path.join(__dirname, '..', 'node_modules', 'tsx', 'dist', 'loader.mjs'),
+        path.join(prxiPackageDir, 'node_modules', 'tsx', 'dist', 'loader.mjs'),
+        path.join(__dirname, '..', '..', '..', 'node_modules', 'tsx', 'dist', 'loader.mjs'),
+      ];
+      
+      const tsxLoader = tsxLoaderPaths.find(p => fs.existsSync(p));
+      
+      if (tsxLoader) {
+        // Use node --import for proper ESM support with TypeScript (Node 18.19+)
+        const child = spawn(process.execPath, ['--import', tsxLoader, prxiPath], {
           stdio: 'inherit',
           cwd: prxiPackageDir,
+          env: {
+            ...process.env,
+            NODE_NO_WARNINGS: '1', // Suppress experimental loader warning
+          },
         });
         
         child.on('exit', (code: number | null) => {
           process.exit(code || 0);
         });
       } else {
-        // Fallback to tsx for bundled/published version
+        // Fallback to tsx binary
         const child = spawn(tsxBin, [prxiPath], {
           stdio: 'inherit',
-          cwd: path.dirname(prxiPath),
+          cwd: prxiPackageDir,
         });
         
         child.on('exit', (code: number | null) => {
