@@ -208,60 +208,45 @@ program
     try {
       await ensureAPIServerRunning(true);
       
-      // Find the built prxi file - check multiple locations
-      const prxiBuiltNew = path.join(__dirname, '..', '..', 'prxi', 'dist', 'index.mjs');
-      const prxiBuiltOld = path.join(__dirname, 'prxi', 'dist', 'index.mjs');
-      const prxiSourceOld = path.join(__dirname, '..', 'src', 'prxi.tsx');
+      // Find the prxi source file - check multiple locations
+      const prxiPaths = [
+        path.join(__dirname, 'prxi', 'src', 'index.tsx'), // When running from built/published CLI
+        path.join(__dirname, '..', '..', 'prxi', 'src', 'index.tsx'), // When running from workspace
+        path.join(__dirname, '..', 'src', 'prxi.tsx'), // Legacy location
+      ];
       
-      let prxiPath: string | null = null;
-      let useSource = false;
-      
-      if (fs.existsSync(prxiBuiltNew)) {
-        prxiPath = prxiBuiltNew;
-      } else if (fs.existsSync(prxiBuiltOld)) {
-        prxiPath = prxiBuiltOld;
-      } else if (fs.existsSync(prxiSourceOld)) {
-        prxiPath = prxiSourceOld;
-        useSource = true;
-      }
+      const prxiPath = prxiPaths.find(p => fs.existsSync(p));
       
       if (!prxiPath) {
         console.error('Error: prxi UI not found.');
-        console.error('Please rebuild the project: npm run build');
+        console.error('Looked in:', prxiPaths);
         process.exit(1);
       }
       
-      const { spawn } = require('child_process');
+      // Find tsx binary - it should be in CLI's node_modules since tsx is a dependency
+      const tsxPaths = [
+        path.join(__dirname, '..', 'node_modules', '.bin', 'tsx'), // When running from built CLI
+        path.join(__dirname, '..', '..', '..', 'node_modules', '.bin', 'tsx'), // When running from workspace root
+        'tsx', // Fallback to PATH
+      ];
       
-      if (useSource) {
-        // Fallback: Run source using tsx
-        const tsxBinRoot = path.join(__dirname, '..', '..', '..', 'node_modules', '.bin', 'tsx');
-        const tsxBinCli = path.join(__dirname, '..', 'node_modules', '.bin', 'tsx');
-        const tsxBin = fs.existsSync(tsxBinRoot) ? tsxBinRoot : tsxBinCli;
-        
-        if (!fs.existsSync(tsxBin)) {
-          console.error('Error: tsx not found. Please install dependencies: npm install');
-          process.exit(1);
-        }
-        
-        const child = spawn(tsxBin, [prxiPath], {
-          stdio: 'inherit',
-          cwd: path.dirname(prxiPath),
-        });
-        
-        child.on('exit', (code: number | null) => {
-          process.exit(code || 0);
-        });
-      } else {
-        // Run built version with node
-        const child = spawn(process.execPath, [prxiPath], {
-          stdio: 'inherit',
-        });
-        
-        child.on('exit', (code: number | null) => {
-          process.exit(code || 0);
-        });
+      let tsxBin = tsxPaths.find(p => p === 'tsx' || fs.existsSync(p));
+      
+      if (!tsxBin) {
+        console.error('Error: tsx not found. Please install dependencies: npm install');
+        process.exit(1);
       }
+      
+      // Run prxi source using tsx
+      const { spawn } = require('child_process');
+      const child = spawn(tsxBin, [prxiPath], {
+        stdio: 'inherit',
+        cwd: path.dirname(prxiPath),
+      });
+      
+      child.on('exit', (code: number | null) => {
+        process.exit(code || 0);
+      });
     } catch (error) {
       console.error('Error launching prxi:', error instanceof Error ? error.message : error);
       process.exit(1);
