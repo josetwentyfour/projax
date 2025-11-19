@@ -33,6 +33,17 @@ body {
   color: var(--text-primary);
   font-size: 13px;
   line-height: 1.5;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Enable text selection for editable elements */
+input,
+textarea,
+[contenteditable="true"],
+[contenteditable=""] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 code {

@@ -19,11 +19,22 @@ const ProjectUrls: React.FC<ProjectUrlsProps> = ({ urls, onOpenUrl }) => {
       <div className="urls-list">
         {urls.map((url, index) => (
           <div key={index} className="url-item">
-            <span className="url-text">{url}</span>
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="url-text"
+              onClick={(e) => {
+                e.preventDefault();
+                window.electronAPI.openExternal(url);
+              }}
+            >
+              {url}
+            </a>
             <button
               onClick={() => onOpenUrl(url)}
               className="btn btn-secondary btn-small"
-              title="Open in browser"
+              title="Open in configured browser"
             >
               Open
             </button>

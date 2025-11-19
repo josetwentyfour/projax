@@ -1,4 +1,4 @@
-import { getDatabaseManager, Project } from '@projax/core';
+import { getDatabaseManager, Project } from './core-bridge';
 import { extractPortsFromProject, PortInfo } from './port-extractor';
 import * as fs from 'fs';
 

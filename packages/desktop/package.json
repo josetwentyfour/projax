@@ -1,13 +1,15 @@
 {
   "name": "projax-desktop",
-  "version": "1.3.0",
+  "version": "1.3.10",
   "description": "projax - Project management dashboard (internal use)",
   "private": true,
   "main": "dist/main.js",
   "scripts": {
-    "build": "npm run build:main && npm run build:renderer",
+    "build": "npm run build:main && npm run copy:core && npm run build:renderer && npm run sync:cli",
     "build:main": "tsc -p tsconfig.main.json && tsc -p tsconfig.preload.json",
     "build:renderer": "vite build",
+    "copy:core": "mkdir -p dist/core && cp -r ../core/dist/* dist/core/",
+    "sync:cli": "mkdir -p ../cli/dist/electron/core && mkdir -p ../cli/dist/electron/renderer && cp dist/main.js ../cli/dist/electron/ && cp dist/preload.js ../cli/dist/electron/ && cp -r dist/core/* ../cli/dist/electron/core/ && cp -r dist/renderer/* ../cli/dist/electron/renderer/ && echo 'Synced desktop files to CLI bundle'",
     "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\"",
     "dev:main": "tsc -p tsconfig.main.json --watch",
     "dev:renderer": "vite",
@@ -15,7 +17,8 @@
     "package": "electron-builder"
   },
   "dependencies": {
-    "electron": "^28.0.0"
+    "electron": "^28.0.0",
+    "react-rnd": "^10.5.2"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.6.0",

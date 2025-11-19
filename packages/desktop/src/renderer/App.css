@@ -9,9 +9,10 @@
 .app-header {
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
-  padding: 0.875rem 1.5rem;
+  padding: 0.5rem 1.5rem;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 1rem;
   backdrop-filter: blur(10px);
   position: relative;
@@ -33,18 +34,55 @@
   opacity: 0.3;
 }
 
-.app-header h1 {
-  font-size: 14px;
+
+.app-logo {
+  margin: 0;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--text-primary);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  font-family: 'SF Mono', 'Monaco', monospace;
+  letter-spacing: 1.5px;
+  color: var(--accent-cyan);
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .header-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 1.5rem;
+  margin-left: auto;
+}
+
+.btn-link {
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  font-family: inherit;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  -webkit-app-region: no-drag;
+}
+
+.btn-link:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.btn-link:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn-link-primary {
+  color: var(--accent-cyan);
+}
+
+.btn-link-primary:hover:not(:disabled) {
+  color: var(--accent-blue);
 }
 
 .btn {
@@ -110,14 +148,39 @@
   display: flex;
   flex: 1;
   overflow: hidden;
+  position: relative;
+}
+
+/* Resize handle styling */
+.react-resizable-handle {
+  position: absolute;
+  width: 4px;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 10;
+}
+
+.react-resizable-handle:hover {
+  background: var(--accent-cyan);
+  opacity: 0.3;
+}
+
+.react-resizable-handle:active {
+  background: var(--accent-cyan);
+  opacity: 0.6;
 }
 
 .sidebar {
-  width: 280px;
+  width: 100%;
+  height: 100%;
   background: var(--bg-secondary);
   border-right: 1px solid var(--border-color);
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar::-webkit-scrollbar {

@@ -7,8 +7,11 @@ export interface Project {
   id: number;
   name: string;
   path: string;
+  description: string | null;
+  framework: string | null;
   last_scanned: number | null;
   created_at: number;
+  tags?: string[];
 }
 
 export interface Test {
@@ -41,6 +44,12 @@ export interface ProjectPort {
   last_detected: number;
   created_at: number;
 }
+
+type ScanResponse = {
+  project: Project;
+  testsFound: number;
+  tests: Test[];
+};
 
 class DatabaseManager {
   private apiBaseUrl: string;
@@ -144,6 +153,14 @@ class DatabaseManager {
     // No need to explicitly update last_scanned
   }
 
+  updateProjectFramework(id: number, framework: string): void {
+    // This will be called during scan to update the detected framework
+    this.request(`/projects/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ framework }),
+    });
+  }
+
   updateProjectName(id: number, newName: string): Project {
     return this.request<Project>(`/projects/${id}`, {
       method: 'PUT',
@@ -151,9 +168,28 @@ class DatabaseManager {
     });
   }
 
+  updateProject(id: number, updates: Partial<Omit<Project, 'id' | 'created_at'>>): Project {
+    return this.request<Project>(`/projects/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
   removeProject(id: number): void {
     this.request(`/projects/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  scanProject(id: number): ScanResponse {
+    return this.request<ScanResponse>(`/projects/${id}/scan`, {
+      method: 'POST',
+    });
+  }
+
+  scanAllProjects(): ScanResponse[] {
+    return this.request<ScanResponse[]>('/projects/scan/all', {
+      method: 'POST',
     });
   }
 

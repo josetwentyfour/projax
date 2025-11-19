@@ -3,7 +3,9 @@
 import { Command } from 'commander';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as http from 'http';
+import { pathToFileURL } from 'url';
 import {
   getDatabaseManager,
   getAllProjects,
@@ -12,7 +14,7 @@ import {
   scanProject,
   scanAllProjects,
   Project,
-} from '@projax/core';
+} from './core-bridge';
 import { getProjectScripts, runScript, runScriptInBackground } from './script-runner';
 import { scanProjectPorts, shouldRescanPorts } from './port-scanner';
 
@@ -80,6 +82,91 @@ async function checkAPIStatus(): Promise<{ running: boolean; port: number | null
   return { running: false, port: null };
 }
 
+function resolveApiEntry(): string | null {
+  const candidates = [
+    // Packaged CLI (dist/api/index.js)
+    path.join(__dirname, 'api', 'index.js'),
+    // Development builds inside workspace
+    path.join(__dirname, '..', 'api', 'dist', 'index.js'),
+    path.join(__dirname, '..', '..', 'api', 'dist', 'index.js'),
+    path.join(__dirname, '..', '..', '..', 'api', 'dist', 'index.js'),
+  ];
+  
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  
+  return null;
+}
+
+// Function to start the API server
+async function startAPIServer(silent: boolean = false): Promise<boolean> {
+  const { spawn } = require('child_process');
+  const apiPath = resolveApiEntry();
+  
+  if (!apiPath) {
+    if (!silent) {
+      console.error('Error: API server not found. Please build it first: npm run build --workspace=packages/api');
+    }
+    return false;
+  }
+  
+  if (!silent) {
+    console.log('Starting API server...');
+  }
+  
+  try {
+    spawn('node', [apiPath], {
+      detached: true,
+      stdio: 'ignore',
+    }).unref();
+    
+    if (!silent) {
+      console.log('✓ API server started');
+    }
+    return true;
+  } catch (error) {
+    if (!silent) {
+      console.error('Error starting API server:', error instanceof Error ? error.message : error);
+    }
+    return false;
+  }
+}
+
+// Function to ensure API server is running (auto-start if needed)
+async function ensureAPIServerRunning(silent: boolean = true): Promise<void> {
+  const apiStatus = await checkAPIStatus();
+  
+  if (apiStatus.running) {
+    // API is already running, nothing to do
+    return;
+  }
+  
+  // API is not running, start it
+  if (!silent) {
+    console.log('Starting API server...');
+  }
+  
+  const started = await startAPIServer(silent);
+  
+  if (!started) {
+    // Failed to start, but don't throw - let the command continue
+    // The error message was already shown if not silent
+    return;
+  }
+  
+  // Wait a bit for the API server to start up
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // Verify it's running
+  const verifyStatus = await checkAPIStatus();
+  if (!verifyStatus.running && !silent) {
+    console.warn('⚠️  API server may not have started successfully. Check logs if needed.');
+  }
+}
+
 // ASCII logo for projax - using a clearer style that shows all 6 letters
 function displayLogo() {
   return `
@@ -111,6 +198,52 @@ program
   .description('Project management dashboard CLI')
   .version(packageJson.version)
   .addHelpText('beforeAll', displayLogo());
+
+// Interactive terminal UI command
+program
+  .command('prxi')
+  .alias('i')
+  .description('Launch interactive terminal UI')
+  .action(async () => {
+    try {
+      await ensureAPIServerRunning(true);
+      
+      // Find the prxi source file - check both locations
+      const prxiSourceNew = path.join(__dirname, '..', '..', 'prxi', 'src', 'index.tsx');
+      const prxiSourceOld = path.join(__dirname, '..', 'src', 'prxi.tsx');
+      const prxiSource = fs.existsSync(prxiSourceNew) ? prxiSourceNew : prxiSourceOld;
+      
+      // Find tsx binary
+      const tsxBinRoot = path.join(__dirname, '..', '..', '..', 'node_modules', '.bin', 'tsx');
+      const tsxBinCli = path.join(__dirname, '..', 'node_modules', '.bin', 'tsx');
+      const tsxBin = fs.existsSync(tsxBinRoot) ? tsxBinRoot : tsxBinCli;
+      
+      if (!fs.existsSync(prxiSource)) {
+        console.error('Error: prxi UI source not found.');
+        console.error(`Looked for: ${prxiSourceNew} and ${prxiSourceOld}`);
+        process.exit(1);
+      }
+      
+      if (!fs.existsSync(tsxBin)) {
+        console.error('Error: tsx not found. Please install dependencies: npm install');
+        process.exit(1);
+      }
+      
+      // Run prxi using tsx
+      const { spawn } = require('child_process');
+      const child = spawn(tsxBin, [prxiSource], {
+        stdio: 'inherit',
+        cwd: path.dirname(prxiSource),
+      });
+      
+      child.on('exit', (code: number | null) => {
+        process.exit(code || 0);
+      });
+    } catch (error) {
+      console.error('Error launching prxi:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
 
 // Add project command
 program
@@ -646,7 +779,7 @@ program
 // CD command - change to project directory (outputs shell command for eval)
 program
   .command('cd')
-  .description('Change to a project directory (use with: eval $(prx cd <project>))')
+  .description('Change to a project directory')
   .argument('[project]', 'Project ID or name (leave empty for interactive selection)')
   .action(async (projectIdentifier?: string) => {
     try {
@@ -691,13 +824,120 @@ program
         process.exit(1);
       }
       
-      // Output a shell command that can be evaluated to change directory
-      // This allows: eval $(prx cd <project>)
-      // Or create a shell function: prxcd() { eval $(prx cd "$@"); }
+      // Output a shell command that changes directory
+      // To use: eval "$(prx cd <project>)"
       const escapedPath = project.path.replace(/'/g, "'\\''");
-      console.log(`cd '${escapedPath}'`);
+      console.log(`cd '${escapedPath}' && echo "Changed to: ${project.name}"`);
     } catch (error) {
       console.error('Error changing to project directory:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Run script command
+program
+  .command('run <project> <script>')
+  .description('Run a script from a project')
+  .option('-b, --background', 'Run script in background')
+  .option('-f, --force', 'Force run (kill conflicting processes on ports)')
+  .action(async (projectIdentifier: string, scriptName: string, options: { background?: boolean; force?: boolean }) => {
+    try {
+      const projects = getAllProjects();
+      
+      // Find project by ID or name
+      let project: Project | undefined;
+      const numericId = parseInt(projectIdentifier, 10);
+      if (!isNaN(numericId)) {
+        project = projects.find((p: Project) => p.id === numericId);
+      }
+      if (!project) {
+        project = projects.find((p: Project) => p.name === projectIdentifier);
+      }
+      
+      if (!project) {
+        console.error(`Error: Project not found: ${projectIdentifier}`);
+        process.exit(1);
+      }
+      
+      const projectScripts = getProjectScripts(project.path);
+      if (!projectScripts.scripts.has(scriptName)) {
+        console.error(`Error: Script "${scriptName}" not found in project "${project.name}"`);
+        console.error(`\nAvailable scripts:`);
+        projectScripts.scripts.forEach((script) => {
+          console.error(`  ${script.name}`);
+        });
+        process.exit(1);
+      }
+      
+      if (options.background) {
+        await runScriptInBackground(project.path, project.name, scriptName, [], options.force || false);
+      } else {
+        await runScript(project.path, scriptName, [], options.force || false);
+      }
+    } catch (error) {
+      console.error('Error running script:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// List running processes command
+program
+  .command('ps')
+  .description('List running background processes')
+  .action(async () => {
+    try {
+      const { getRunningProcessesClean } = await import('./script-runner');
+      const processes = await getRunningProcessesClean();
+      
+      if (processes.length === 0) {
+        console.log('No running background processes.');
+        return;
+      }
+      
+      console.log(`\nRunning processes (${processes.length}):\n`);
+      for (const proc of processes) {
+        const uptime = Math.floor((Date.now() - proc.startedAt) / 1000);
+        const minutes = Math.floor(uptime / 60);
+        const seconds = uptime % 60;
+        const uptimeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+        
+        console.log(`  PID ${proc.pid}: ${proc.projectName} (${proc.scriptName}) - ${uptimeStr}`);
+        console.log(`  Command: ${proc.command}`);
+        console.log(`  Logs: ${proc.logFile}`);
+        if (proc.detectedUrls && proc.detectedUrls.length > 0) {
+          console.log(`  URLs: ${proc.detectedUrls.join(', ')}`);
+        }
+        console.log('');
+      }
+    } catch (error) {
+      console.error('Error listing processes:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Stop process command
+program
+  .command('stop <pid>')
+  .description('Stop a running background process')
+  .action(async (pidStr: string) => {
+    try {
+      const pid = parseInt(pidStr, 10);
+      if (isNaN(pid)) {
+        console.error('Error: Invalid PID');
+        process.exit(1);
+      }
+      
+      const { stopScript } = await import('./script-runner');
+      const success = await stopScript(pid);
+      
+      if (success) {
+        console.log(`✓ Stopped process ${pid}`);
+      } else {
+        console.error(`Failed to stop process ${pid}`);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error('Error stopping process:', error instanceof Error ? error.message : error);
       process.exit(1);
     }
   });
@@ -705,26 +945,65 @@ program
 // Start Desktop UI command
 program
   .command('web')
+  .alias('desktop')
+  .alias('ui')
   .description('Start the Desktop web interface')
   .option('--dev', 'Start in development mode (with hot reload)')
   .action(async (options) => {
     try {
+      // Clear Electron cache to prevent stale module issues
+      if (os.platform() === 'darwin') {
+        const cacheDirs = [
+          path.join(os.homedir(), 'Library', 'Application Support', 'Electron', 'Cache'),
+          path.join(os.homedir(), 'Library', 'Application Support', 'Electron', 'Code Cache'),
+          path.join(os.homedir(), 'Library', 'Application Support', 'Electron', 'GPUCache'),
+          path.join(os.homedir(), 'Library', 'Caches', 'Electron'),
+        ];
+        for (const dir of cacheDirs) {
+          try {
+            if (fs.existsSync(dir)) {
+              fs.rmSync(dir, { recursive: true, force: true });
+            }
+          } catch (error) {
+            // Ignore cache clear errors
+          }
+        }
+      }
+      
+      // Ensure API server is running before starting Desktop app
+      await ensureAPIServerRunning(false);
+      
       // Check for bundled Desktop app first (in dist/desktop when installed globally)
       // Then check for local development (packages/cli/dist -> packages/desktop)
-      const bundledDesktopPath = path.join(__dirname, 'desktop');
-      const bundledDesktopMain = path.join(bundledDesktopPath, 'main.js');
+      // Support both legacy "desktop" folder and current "electron" bundle folder
+      const bundledDesktopPathCandidates = [
+        path.join(__dirname, 'desktop'),
+        path.join(__dirname, 'electron'),
+      ];
+      
+      let bundledDesktopPath: string | null = null;
+      let bundledDesktopMain: string | null = null;
+      for (const candidate of bundledDesktopPathCandidates) {
+        const mainCandidate = path.join(candidate, 'main.js');
+        if (fs.existsSync(mainCandidate)) {
+          bundledDesktopPath = candidate;
+          bundledDesktopMain = mainCandidate;
+          break;
+        }
+      }
+      
       const localDesktopPath = path.join(__dirname, '..', '..', 'desktop');
       const localDesktopMain = path.join(localDesktopPath, 'dist', 'main.js');
       
       // Check if bundled desktop exists (global install)
-      const hasBundledDesktop = fs.existsSync(bundledDesktopMain);
+      const hasBundledDesktop = Boolean(bundledDesktopPath && bundledDesktopMain);
       // Check if local desktop exists (development mode)
       const isLocalDev = fs.existsSync(localDesktopPath) && fs.existsSync(path.join(localDesktopPath, 'package.json'));
       
       let desktopPackagePath: string;
       let desktopMainPath: string;
       
-      if (hasBundledDesktop) {
+      if (bundledDesktopPath && bundledDesktopMain) {
         // Bundled Desktop app (global install)
         desktopPackagePath = bundledDesktopPath;
         desktopMainPath = bundledDesktopMain;
@@ -840,61 +1119,6 @@ program
         process.env.NODE_ENV = 'production';
       }
       
-      // Automatically rebuild better-sqlite3 for Desktop/Electron if needed
-      // This ensures it's compiled for Electron's Node.js version
-      if (hasBundledDesktop) {
-        try {
-          const electronPkg = require('electron/package.json');
-          let rebuild;
-          try {
-            rebuild = require('@electron/rebuild').rebuild;
-          } catch {
-            // @electron/rebuild not available, skip auto-rebuild
-          }
-          
-          if (rebuild) {
-            const sqlitePath = require.resolve('better-sqlite3');
-            // Find the package root - better-sqlite3 is in projax/node_modules/better-sqlite3
-            // Path structure: projax/node_modules/better-sqlite3/lib/index.js
-            // So we need to go: sqlitePath -> lib -> better-sqlite3 -> node_modules -> projax (package root)
-            const sqliteDir = path.dirname(sqlitePath); // .../better-sqlite3/lib
-            const betterSqlite3Dir = path.dirname(sqliteDir); // .../better-sqlite3
-            const nodeModulesDir = path.dirname(betterSqlite3Dir); // .../node_modules
-            // The package root is the directory containing node_modules (i.e., projax package root)
-            const packageRoot = path.dirname(nodeModulesDir); // .../projax
-            
-            console.log('Ensuring better-sqlite3 is built for Desktop/Electron...');
-            try {
-              await new Promise<void>((resolve, reject) => {
-                rebuild({
-                  buildPath: packageRoot,
-                  electronVersion: electronPkg.version,
-                  onlyModules: ['better-sqlite3'],
-                  force: true,
-                })
-                  .then(() => {
-                    console.log('✓ better-sqlite3 ready for Desktop/Electron');
-                    resolve();
-                  })
-                  .catch((err: any) => {
-                    // Don't fail if rebuild has issues, just warn
-                    console.warn('⚠️  Could not rebuild better-sqlite3 automatically:', err.message);
-                    console.warn('   The app may still work, but if you see errors, run:');
-                    console.warn(`   cd ${packageRoot}`);
-                    console.warn('   npm rebuild better-sqlite3 --build-from-source');
-                    resolve(); // Continue anyway
-                  });
-              });
-            } catch (rebuildError) {
-              // Continue even if rebuild fails
-              console.warn('⚠️  Rebuild check failed, continuing anyway...');
-            }
-          }
-        } catch (checkError) {
-          // If we can't check, just continue - the error will show when Desktop app tries to use it
-        }
-      }
-      
       console.log('Starting Desktop app...');
       const { spawn } = require('child_process');
       const electron = require('electron');
@@ -925,18 +1149,8 @@ program
       const apiStatus = await checkAPIStatus();
       
       if (options.start) {
-        console.log('Starting API server...');
-        // Start API server in background
-        const { spawn } = require('child_process');
-        const apiPath = path.join(__dirname, '..', '..', 'api', 'dist', 'index.js');
-        if (fs.existsSync(apiPath)) {
-          spawn('node', [apiPath], {
-            detached: true,
-            stdio: 'ignore',
-          }).unref();
-          console.log('✓ API server started');
-        } else {
-          console.error('Error: API server not found. Please build it first: npm run build --workspace=packages/api');
+        const started = await startAPIServer(false);
+        if (!started) {
           process.exit(1);
         }
         return;
@@ -1024,7 +1238,7 @@ program
 // Check if first argument is not a known command
 (async () => {
   const args = process.argv.slice(2);
-  const knownCommands = ['add', 'list', 'scan', 'remove', 'rn', 'rename', 'cd', 'pwd', 'web', 'scripts', 'scan-ports', 'api', '--help', '-h', '--version', '-V'];
+  const knownCommands = ['prxi', 'i', 'add', 'list', 'scan', 'remove', 'rn', 'rename', 'cd', 'pwd', 'run', 'ps', 'stop', 'web', 'desktop', 'ui', 'scripts', 'scan-ports', 'api', '--help', '-h', '--version', '-V'];
 
   // If we have at least 1 argument and first is not a known command, treat as project identifier
   if (args.length >= 1 && !knownCommands.includes(args[0])) {

@@ -4,10 +4,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 type Project = any;
 type Test = any;
 import { ElectronAPI } from '../main/preload';
+import { Rnd } from 'react-rnd';
 import ProjectList from './components/ProjectList';
 import ProjectDetails from './components/ProjectDetails';
 import AddProjectModal from './components/AddProjectModal';
-import ProjectSearch, { FilterType } from './components/ProjectSearch';
+import ProjectSearch, { FilterType, SortType } from './components/ProjectSearch';
 import Settings from './components/Settings';
 import Titlebar from './components/Titlebar';
 import StatusBar from './components/StatusBar';
@@ -28,10 +29,23 @@ function App() {
   const [scanning, setScanning] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
+  const [sortType, setSortType] = useState<SortType>('name-asc');
   const [showSettings, setShowSettings] = useState(false);
+  const [runningProcesses, setRunningProcesses] = useState<any[]>([]);
+  const [keyboardFocusedIndex, setKeyboardFocusedIndex] = useState<number>(-1);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
+  const [sidebarWidth, setSidebarWidth] = useState<number>(280);
 
   useEffect(() => {
     loadProjects();
+    loadRunningProcesses();
+    
+    // Refresh running processes every 5 seconds
+    const interval = setInterval(() => {
+      loadRunningProcesses();
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -41,6 +55,7 @@ function App() {
       setTests([]);
     }
   }, [selectedProject]);
+
 
   const loadProjects = async () => {
     try {
@@ -65,6 +80,15 @@ function App() {
       setTests(testList);
     } catch (error) {
       console.error('Error loading tests:', error);
+    }
+  };
+
+  const loadRunningProcesses = async () => {
+    try {
+      const processes = await window.electronAPI.getRunningProcesses();
+      setRunningProcesses(processes);
+    } catch (error) {
+      console.error('Error loading running processes:', error);
     }
   };
 
@@ -140,13 +164,12 @@ function App() {
   };
 
   const filteredProjects = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return projects;
-    }
+    let filtered = projects;
 
+    // Apply search filter
+    if (searchQuery.trim()) {
     const query = searchQuery.toLowerCase().trim();
-
-    return projects.filter((project: Project) => {
+      filtered = projects.filter((project: Project) => {
       switch (filterType) {
         case 'name':
           return project.name.toLowerCase().includes(query);
@@ -166,37 +189,136 @@ function App() {
         default:
           return (
             project.name.toLowerCase().includes(query) ||
-            project.path.toLowerCase().includes(query)
+              project.path.toLowerCase().includes(query) ||
+              (project.tags && project.tags.some((tag: string) => tag.toLowerCase().includes(query)))
           );
       }
     });
-  }, [projects, searchQuery, filterType, tests]);
+    }
+
+    // Apply sorting
+    const sorted = [...filtered];
+    switch (sortType) {
+      case 'name-asc':
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'name-desc':
+        sorted.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      case 'recent':
+        sorted.sort((a, b) => (b.last_scanned || 0) - (a.last_scanned || 0));
+        break;
+      case 'oldest':
+        sorted.sort((a, b) => a.created_at - b.created_at);
+        break;
+      case 'tests':
+        sorted.sort((a, b) => {
+          const aTests = tests.filter((t: Test) => t.project_id === a.id).length;
+          const bTests = tests.filter((t: Test) => t.project_id === b.id).length;
+          return bTests - aTests;
+        });
+        break;
+      case 'running':
+        sorted.sort((a, b) => {
+          const aRunning = runningProcesses.filter((p: any) => p.projectPath === a.path).length;
+          const bRunning = runningProcesses.filter((p: any) => p.projectPath === b.path).length;
+          return bRunning - aRunning;
+        });
+        break;
+    }
+
+    return sorted;
+  }, [projects, searchQuery, filterType, sortType, tests, runningProcesses]);
+
+  // Keyboard shortcuts and navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + , to open settings
+      if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+        e.preventDefault();
+        setShowSettings(true);
+        return;
+      }
+
+      // Cmd/Ctrl + / to focus search
+      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      // Don't handle arrow keys if user is typing in an input/textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      // Only handle arrow keys if focus is in the project list
+      const projectList = document.querySelector('.project-list');
+      const isInProjectList = projectList && (
+        projectList === target || 
+        projectList.contains(target) ||
+        target.closest('.project-item') !== null
+      );
+
+      if (!isInProjectList && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+        return; // Don't handle arrow keys outside project list
+      }
+
+      const filtered = filteredProjects;
+      
+      // Arrow keys for project navigation (only when in project list)
+      if (e.key === 'ArrowDown' && isInProjectList) {
+        e.preventDefault();
+        const nextIndex = keyboardFocusedIndex < filtered.length - 1 
+          ? keyboardFocusedIndex + 1 
+          : filtered.length > 0 ? 0 : -1;
+        if (nextIndex >= 0) {
+          setKeyboardFocusedIndex(nextIndex);
+          setSelectedProject(filtered[nextIndex]);
+        }
+      } else if (e.key === 'ArrowUp' && isInProjectList) {
+        e.preventDefault();
+        const prevIndex = keyboardFocusedIndex > 0 
+          ? keyboardFocusedIndex - 1 
+          : filtered.length > 0 ? filtered.length - 1 : -1;
+        if (prevIndex >= 0) {
+          setKeyboardFocusedIndex(prevIndex);
+          setSelectedProject(filtered[prevIndex]);
+        }
+      } else if (e.key === 'Enter' && keyboardFocusedIndex >= 0 && keyboardFocusedIndex < filtered.length && isInProjectList) {
+        e.preventDefault();
+        setSelectedProject(filtered[keyboardFocusedIndex]);
+      } else if (e.key === 'Escape' && isInProjectList) {
+        setKeyboardFocusedIndex(-1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [keyboardFocusedIndex, filteredProjects]);
+
+  // Reset keyboard focus when projects change
+  useEffect(() => {
+    setKeyboardFocusedIndex(-1);
+  }, [filteredProjects.length, searchQuery]);
 
   return (
     <div className="app">
       <Titlebar>
-        <h1>projax</h1>
         <div className="header-actions">
           <button
             type="button"
             onClick={() => setShowSettings(true)}
-            className="btn btn-secondary"
+            className="btn-link"
             title="Settings"
           >
-            ⚙️ Settings
-          </button>
-          <button
-            type="button"
-            onClick={handleScanAll}
-            disabled={scanning || projects.length === 0}
-            className="btn btn-secondary"
-          >
-            {scanning ? 'Scanning...' : 'Scan All'}
+            Settings
           </button>
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="btn btn-primary"
+            className="btn-link btn-link-primary"
           >
             + Add Project
           </button>
@@ -204,18 +326,47 @@ function App() {
       </Titlebar>
 
       <div className="app-content">
-        <aside className="sidebar">
-          <ProjectSearch onSearchChange={handleSearchChange} />
-          <ProjectList
-            projects={filteredProjects}
-            selectedProject={selectedProject}
-            onSelectProject={setSelectedProject}
-            onRemoveProject={handleRemoveProject}
-            onScanProject={handleScanProject}
-            loading={loading}
-            scanning={scanning}
-          />
-        </aside>
+        <Rnd
+          size={{ width: sidebarWidth, height: '100%' }}
+          minWidth={200}
+          maxWidth={600}
+          disableDragging={true}
+          enableResizing={{ right: true }}
+          onResizeStop={(e, direction, ref, d) => {
+            const newWidth = sidebarWidth + d.width;
+            setSidebarWidth(Math.max(200, Math.min(600, newWidth)));
+          }}
+          style={{
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+          resizeHandleStyles={{
+            right: {
+              width: '4px',
+              right: '-2px',
+              cursor: 'col-resize',
+              backgroundColor: 'transparent',
+            },
+          }}
+        >
+          <aside className="sidebar" style={{ width: '100%', height: '100%' }}>
+            <ProjectSearch 
+              onSearchChange={handleSearchChange} 
+              onSortChange={setSortType}
+              searchInputRef={searchInputRef}
+            />
+            <ProjectList
+              projects={filteredProjects}
+              selectedProject={selectedProject}
+              onSelectProject={setSelectedProject}
+              loading={loading}
+              runningProcesses={runningProcesses}
+              keyboardFocusedIndex={keyboardFocusedIndex}
+              onKeyboardFocusChange={setKeyboardFocusedIndex}
+            />
+          </aside>
+        </Rnd>
 
         <main className="main-content">
           {selectedProject ? (
@@ -228,6 +379,7 @@ function App() {
                 setSelectedProject(updated);
                 loadProjects();
               }}
+              onRemoveProject={handleRemoveProject}
             />
           ) : (
             <div className="empty-state">

@@ -2,16 +2,26 @@
   padding: 12px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-secondary);
+  flex-shrink: 0;
+  z-index: 10;
 }
 
 .search-input-group {
   display: flex;
   gap: 8px;
+  position: relative;
+}
+
+.search-input-wrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .search-input {
   flex: 1;
-  padding: 8px 12px;
+  padding: 8px 36px 8px 12px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 14px;
@@ -19,6 +29,68 @@
   transition: border-color 0.2s;
   background: var(--bg-tertiary);
   color: var(--text-primary);
+}
+
+.sort-icon-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  transition: all 0.15s ease;
+}
+
+.sort-icon-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.sort-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: var(--shadow-md);
+  z-index: 100;
+  min-width: 180px;
+  padding: 4px;
+}
+
+.sort-menu-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 13px;
+  color: var(--text-primary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.15s ease;
+}
+
+.sort-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.sort-menu-item.active {
+  background: var(--bg-hover);
+  color: var(--accent-cyan);
+}
+
+.sort-menu-item .checkmark {
+  color: var(--accent-green);
+  font-size: 12px;
+  margin-left: 8px;
 }
 
 .search-input:focus {

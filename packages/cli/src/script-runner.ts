@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { spawn } from 'child_process';
-import { getDatabaseManager } from '@projax/core';
+import { getDatabaseManager } from './core-bridge';
 import { detectPortInUse, getProcessOnPort, killProcessOnPort, extractPortFromError } from './port-utils';
 
 export interface ScriptInfo {
@@ -564,9 +564,61 @@ export function getProjectProcesses(projectPath: string): BackgroundProcess[] {
 }
 
 /**
- * Get all running processes
+ * Check if a process is still running
+ */
+async function isProcessRunning(pid: number): Promise<boolean> {
+  try {
+    if (os.platform() === 'win32') {
+      const { exec } = require('child_process');
+      const { promisify } = require('util');
+      const execAsync = promisify(exec);
+      const { stdout } = await execAsync(`tasklist /FI "PID eq ${pid}" /FO CSV /NH`);
+      return stdout.includes(`"${pid}"`);
+    } else {
+      // On Unix-like systems, kill with signal 0 checks if process exists
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Clean up dead processes from tracking
+ */
+async function cleanupDeadProcesses(): Promise<void> {
+  const processes = loadProcesses();
+  const aliveProcesses: BackgroundProcess[] = [];
+  
+  for (const proc of processes) {
+    const isAlive = await isProcessRunning(proc.pid);
+    if (isAlive) {
+      aliveProcesses.push(proc);
+    }
+  }
+  
+  if (aliveProcesses.length !== processes.length) {
+    saveProcesses(aliveProcesses);
+  }
+}
+
+/**
+ * Get all running processes (synchronous version that returns potentially stale data)
  */
 export function getRunningProcesses(): BackgroundProcess[] {
+  return loadProcesses();
+}
+
+/**
+ * Get all running processes with cleanup (async version)
+ */
+export async function getRunningProcessesClean(): Promise<BackgroundProcess[]> {
+  await cleanupDeadProcesses();
   return loadProcesses();
 }
 
@@ -796,23 +848,49 @@ export function runScriptInBackground(
     }
     const logFile = path.join(logsDir, `process-${Date.now()}-${scriptName}.log`);
 
-    // Create write stream for log file (keep reference to prevent GC)
-    const logStream = fs.createWriteStream(logFile, { flags: 'a' });
+    // Open log file with file descriptors that can be inherited by child process
+    const logFd = fs.openSync(logFile, 'a');
     
     // Spawn process in detached mode with output redirected to log file
-    const child = spawn(command, commandArgs, {
+    let child;
+    try {
+      child = spawn(command, commandArgs, {
       cwd: projectPath,
-      stdio: ['ignore', logStream, logStream], // Redirect stdout and stderr to log file
+        stdio: ['ignore', logFd, logFd], // Redirect stdout and stderr to log file descriptor
       detached: true,
       shell: process.platform === 'win32',
+      });
+    } catch (spawnError) {
+      fs.closeSync(logFd);
+      reject(new Error(`Failed to spawn process: ${spawnError instanceof Error ? spawnError.message : String(spawnError)}`));
+      return;
+    }
+    
+    if (!child.pid) {
+      fs.closeSync(logFd);
+      reject(new Error('Failed to start process: no PID assigned'));
+      return;
+    }
+    
+    // Handle spawn errors
+    child.on('error', (error) => {
+      fs.closeSync(logFd);
+      reject(new Error(`Process spawn error: ${error.message}`));
     });
     
-    // Don't close the stream - let it stay open for the child process
-    // The stream will be closed when the child process exits
+    // Close the file descriptor in parent process after a short delay
+    // The child process will have its own copy
+    setTimeout(() => {
+      try {
+        fs.closeSync(logFd);
+      } catch {
+        // Already closed or error, ignore
+      }
+    }, 1000);
 
     // Store process info
     const processInfo: BackgroundProcess = {
-      pid: child.pid!,
+      pid: child.pid,
       projectPath,
       projectName,
       scriptName,
@@ -822,6 +900,19 @@ export function runScriptInBackground(
     };
 
     addProcess(processInfo);
+
+    // Listen for process exit to clean up tracking
+    child.on('exit', (code, signal) => {
+      // Remove from tracking when process exits
+      removeProcess(child.pid!);
+      
+      // Log exit information
+      if (code !== null) {
+        fs.appendFileSync(logFile, `\n\n[Process exited with code ${code}]\n`);
+      } else if (signal !== null) {
+        fs.appendFileSync(logFile, `\n\n[Process killed by signal ${signal}]\n`);
+      }
+    });
 
     // Unref so parent can exit and process runs independently
     child.unref();
@@ -882,8 +973,8 @@ export function runScriptInBackground(
       }
     }, 5000);
 
-    // Resolve immediately since process is running in background
-    resolve(0);
+    // Resolve with PID since process is running in background
+    resolve(child.pid);
   });
 }
 

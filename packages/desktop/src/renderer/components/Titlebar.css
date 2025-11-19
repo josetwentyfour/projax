@@ -2,5 +2,16 @@
   -webkit-app-region: drag;
   -webkit-user-select: none;
   user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Make buttons and interactive elements clickable */
+.app-header button,
+.app-header .btn,
+.app-header .btn-link,
+.app-header .header-actions {
+  -webkit-app-region: no-drag;
 }
 

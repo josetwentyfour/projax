@@ -52,6 +52,41 @@
   box-shadow: 0 0 0 2px rgba(57, 197, 207, 0.2);
 }
 
+.project-description-edit {
+  margin-bottom: 0.5rem;
+}
+
+.project-description-input {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent-cyan);
+  border-radius: 4px;
+  padding: 0.5rem;
+  font-size: 13px;
+  color: var(--text-primary);
+  font-family: inherit;
+  width: 100%;
+  max-width: 600px;
+  resize: vertical;
+  min-height: 60px;
+}
+
+.project-description-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(57, 197, 207, 0.2);
+}
+
+.project-description {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  transition: color 0.15s ease;
+  margin-bottom: 0.5rem;
+}
+
+.project-description:hover {
+  color: var(--text-primary);
+}
+
 .header-actions-group {
   display: flex;
   gap: 0.5rem;
@@ -266,9 +301,178 @@
   line-height: 1.6;
 }
 
+.danger-zone {
+  background: rgba(248, 81, 73, 0.05);
+  padding: 1.25rem;
+  border-radius: 4px;
+  border: 1px solid rgba(248, 81, 73, 0.3);
+  margin-top: 1.5rem;
+}
+
+.danger-zone h3 {
+  font-size: 13px;
+  color: #f85149;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: inherit;
+}
+
+.danger-zone-text {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+
+.danger-zone .btn-danger {
+  background: transparent;
+  border: 1px solid #f85149;
+  color: #f85149;
+}
+
+.danger-zone .btn-danger:hover:not(:disabled) {
+  background: #f85149;
+  color: var(--bg-primary);
+}
+
 .btn-small {
   padding: 0.375rem 0.75rem;
   font-size: 11px;
+}
+
+/* Tags Section */
+.tags-section {
+  background: var(--bg-secondary);
+  padding: 1.25rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  margin-bottom: 1.5rem;
+}
+
+.tags-content {
+  margin-top: 0.75rem;
+}
+
+.tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.tag-item {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  padding: 0.375rem 0.625rem;
+  padding-right: 0.375rem;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent-cyan);
+  font-family: 'SF Mono', 'Monaco', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  transition: all 0.15s ease;
+}
+
+.tag-item:hover {
+  border-color: var(--accent-cyan);
+}
+
+.tag-remove {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 16px;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.tag-remove:hover {
+  color: #f85149;
+}
+
+.tag-add-btn {
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  padding: 0.375rem 0.75rem;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.tag-add-btn:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  background: var(--bg-tertiary);
+}
+
+.tag-input-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.tag-input {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent-cyan);
+  border-radius: 4px;
+  padding: 0.375rem 0.625rem;
+  font-size: 11px;
+  font-family: 'SF Mono', 'Monaco', monospace;
+  color: var(--text-primary);
+  min-width: 120px;
+  outline: none;
+}
+
+.tag-input:focus {
+  box-shadow: 0 0 0 2px rgba(57, 197, 207, 0.2);
+}
+
+.tag-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: var(--shadow-md);
+  z-index: 100;
+  min-width: 100%;
+  max-width: 200px;
+}
+
+.tag-suggestion {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-primary);
+  font-family: 'SF Mono', 'Monaco', monospace;
+  transition: all 0.15s ease;
+}
+
+.tag-suggestion:first-child {
+  border-radius: 4px 4px 0 0;
+}
+
+.tag-suggestion:last-child {
+  border-radius: 0 0 4px 4px;
+}
+
+.tag-suggestion:hover {
+  background: var(--bg-hover);
+  color: var(--accent-cyan);
 }
 
 .ports-section,

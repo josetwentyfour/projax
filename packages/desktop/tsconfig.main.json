@@ -2,7 +2,11 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src/main"
+    "rootDir": "./src/main",
+    "baseUrl": "./src/main",
+    "paths": {
+      "projax-core": ["../../core/src/index"]
+    }
   },
   "include": ["src/main/**/*"],
   "exclude": ["node_modules", "dist", "src/renderer"]

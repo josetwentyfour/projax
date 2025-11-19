@@ -30,13 +30,64 @@ class JSONDatabase {
       try {
         const fileContent = fs.readFileSync(this.dbPath, 'utf-8');
         this.data = JSON.parse(fileContent);
+        // Migrate/validate loaded data to ensure type safety
+        this.migrateData();
       } catch (error) {
         console.error('Error reading database file, using defaults:', error);
-        this.data = defaultData;
+        this.data = JSON.parse(JSON.stringify(defaultData));
         this.write();
       }
     } else {
-      this.data = defaultData;
+      this.data = JSON.parse(JSON.stringify(defaultData));
+      this.write();
+    }
+  }
+
+  /**
+   * Migrate and validate loaded data to ensure compatibility with current schema.
+   * This ensures that projects loaded from older database versions have all required fields.
+   */
+  private migrateData(): void {
+    let needsWrite = false;
+    
+    // Ensure all projects have the framework, description, and tags fields
+    if (this.data.projects) {
+      for (const project of this.data.projects) {
+        if (project.framework === undefined) {
+          project.framework = null;
+          needsWrite = true;
+        }
+        if (project.description === undefined) {
+          project.description = null;
+          needsWrite = true;
+        }
+        if (project.tags === undefined) {
+          project.tags = [];
+          needsWrite = true;
+        }
+      }
+    }
+    
+    // Ensure all required top-level arrays exist
+    if (!this.data.tests) {
+      this.data.tests = [];
+      needsWrite = true;
+    }
+    if (!this.data.jenkins_jobs) {
+      this.data.jenkins_jobs = [];
+      needsWrite = true;
+    }
+    if (!this.data.project_ports) {
+      this.data.project_ports = [];
+      needsWrite = true;
+    }
+    if (!this.data.settings) {
+      this.data.settings = [];
+      needsWrite = true;
+    }
+    
+    // Write migrated data back to disk if any changes were made
+    if (needsWrite) {
       this.write();
     }
   }
@@ -67,13 +118,28 @@ class JSONDatabase {
       id: newId,
       name,
       path: projectPath,
+      description: null,
+      framework: null,  // Will be detected on first scan
       last_scanned: null,
       created_at: Math.floor(Date.now() / 1000),
+      tags: [],
     };
     
     projects.push(project);
     this.write();
     return project;
+  }
+  
+  getAllTags(): string[] {
+    const tagsSet = new Set<string>();
+    for (const project of this.data.projects) {
+      if (project.tags) {
+        for (const tag of project.tags) {
+          tagsSet.add(tag);
+        }
+      }
+    }
+    return Array.from(tagsSet).sort();
   }
 
   getProject(id: number): Project | null {
@@ -102,6 +168,23 @@ class JSONDatabase {
       throw new Error('Project not found');
     }
     project.name = newName;
+    this.write();
+    return project;
+  }
+
+  updateProject(id: number, updates: Partial<Omit<Project, 'id' | 'created_at'>>): Project {
+    const project = this.data.projects.find(p => p.id === id);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+    
+    if (updates.name !== undefined) project.name = updates.name;
+    if (updates.path !== undefined) project.path = updates.path;
+    if (updates.description !== undefined) project.description = updates.description;
+    if (updates.framework !== undefined) project.framework = updates.framework;
+    if (updates.last_scanned !== undefined) project.last_scanned = updates.last_scanned;
+    if (updates.tags !== undefined) project.tags = updates.tags;
+    
     this.write();
     return project;
   }

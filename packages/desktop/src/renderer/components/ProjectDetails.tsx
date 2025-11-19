@@ -12,6 +12,7 @@ interface ProjectDetailsProps {
   onScan: () => void;
   scanning: boolean;
   onProjectUpdate?: (project: Project) => void;
+  onRemoveProject?: (projectId: number) => void;
 }
 
 const ProjectDetails: React.FC<ProjectDetailsProps> = ({
@@ -20,9 +21,12 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   onScan,
   scanning,
   onProjectUpdate,
+  onRemoveProject,
 }) => {
   const [editingName, setEditingName] = useState(false);
   const [projectName, setProjectName] = useState(project.name);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [projectDescription, setProjectDescription] = useState(project.description || '');
   const [scripts, setScripts] = useState<any>(null);
   const [loadingScripts, setLoadingScripts] = useState(false);
   const [ports, setPorts] = useState<any[]>([]);
@@ -31,12 +35,19 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   const [runningScripts, setRunningScripts] = useState<Set<string>>(new Set());
   const [runningProcesses, setRunningProcesses] = useState<any[]>([]);
   const [loadingProcesses, setLoadingProcesses] = useState(false);
+  const [editingTags, setEditingTags] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+  const [allTags, setAllTags] = useState<string[]>([]);
+  const [projectTags, setProjectTags] = useState<string[]>(project.tags || []);
 
   useEffect(() => {
     setProjectName(project.name);
+    setProjectDescription(project.description || '');
+    setProjectTags(project.tags || []);
     loadScripts();
     loadPorts();
     loadRunningProcesses();
+    loadAllTags();
     
     // Refresh running processes every 5 seconds
     const interval = setInterval(() => {
@@ -45,6 +56,23 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     
     return () => clearInterval(interval);
   }, [project]);
+
+  const loadAllTags = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/projects/tags');
+      if (!response.ok) {
+        console.error('Failed to load tags:', response.status);
+        setAllTags([]);
+        return;
+      }
+      const tags = await response.json();
+      // Ensure we always set an array
+      setAllTags(Array.isArray(tags) ? tags : []);
+    } catch (error) {
+      console.error('Error loading tags:', error);
+      setAllTags([]);
+    }
+  };
 
   const loadScripts = async () => {
     try {
@@ -91,6 +119,69 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
       setProjectName(project.name);
     }
   };
+
+  const handleUpdateDescription = async () => {
+    const newDescription = projectDescription.trim() || null;
+    if (newDescription === (project.description || '')) {
+      setEditingDescription(false);
+      setProjectDescription(project.description || '');
+      return;
+    }
+
+    try {
+      const updated = await window.electronAPI.updateProject(project.id, { description: newDescription });
+      setEditingDescription(false);
+      if (onProjectUpdate) {
+        onProjectUpdate(updated);
+      }
+    } catch (error) {
+      console.error('Error updating description:', error);
+      alert('Failed to update description');
+      setProjectDescription(project.description || '');
+    }
+  };
+
+  const handleAddTag = async () => {
+    const newTag = tagInput.trim();
+    if (!newTag || projectTags.includes(newTag)) {
+      setTagInput('');
+      return;
+    }
+
+    const updatedTags = [...projectTags, newTag];
+    try {
+      const updated = await window.electronAPI.updateProject(project.id, { tags: updatedTags });
+      setProjectTags(updatedTags);
+      setTagInput('');
+      if (onProjectUpdate) {
+        onProjectUpdate(updated);
+      }
+      await loadAllTags();
+    } catch (error) {
+      console.error('Error adding tag:', error);
+      alert('Failed to add tag');
+    }
+  };
+
+  const handleRemoveTag = async (tagToRemove: string) => {
+    const updatedTags = projectTags.filter(tag => tag !== tagToRemove);
+    try {
+      const updated = await window.electronAPI.updateProject(project.id, { tags: updatedTags });
+      setProjectTags(updatedTags);
+      if (onProjectUpdate) {
+        onProjectUpdate(updated);
+      }
+      await loadAllTags();
+    } catch (error) {
+      console.error('Error removing tag:', error);
+      alert('Failed to remove tag');
+    }
+  };
+
+  const suggestedTags = allTags.filter(tag => 
+    !projectTags.includes(tag) && 
+    tag.toLowerCase().includes(tagInput.toLowerCase())
+  );
 
   const handleScanPorts = async () => {
     try {
@@ -241,7 +332,40 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
               {project.name}
             </h2>
           )}
+          {editingDescription ? (
+            <div className="project-description-edit">
+              <textarea
+                value={projectDescription}
+                onChange={(e) => setProjectDescription(e.target.value)}
+                onBlur={handleUpdateDescription}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    handleUpdateDescription();
+                  } else if (e.key === 'Escape') {
+                    setEditingDescription(false);
+                    setProjectDescription(project.description || '');
+                  }
+                }}
+                className="project-description-input"
+                placeholder="Add a description..."
+                autoFocus
+                rows={2}
+              />
+            </div>
+          ) : (
+            <div>
+              <p 
+                className="project-description" 
+                onClick={() => setEditingDescription(true)}
+                title="Click to edit description"
+              >
+                {project.description || project.path}
+              </p>
+              {project.description && (
           <p className="project-path">{project.path}</p>
+              )}
+            </div>
+          )}
         </div>
         <div className="header-actions-group">
           <button
@@ -266,13 +390,6 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
           >
             {scanningPorts ? 'Scanning...' : 'Scan Ports'}
           </button>
-        <button
-          onClick={onScan}
-          disabled={scanning}
-          className="btn btn-primary"
-        >
-          {scanning ? 'Scanning...' : 'Scan for Tests'}
-        </button>
         </div>
       </div>
 
@@ -292,6 +409,77 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
         <div className="stat-card">
           <div className="stat-value">{scripts?.scripts?.length || 0}</div>
           <div className="stat-label">Scripts</div>
+        </div>
+      </div>
+
+      {/* Tags Section */}
+      <div className="tags-section">
+        <div className="section-header">
+          <h3>Tags</h3>
+        </div>
+        <div className="tags-content">
+          <div className="tags-list">
+            {projectTags.map((tag) => (
+              <span key={tag} className="tag-item">
+                {tag}
+                <button
+                  onClick={() => handleRemoveTag(tag)}
+                  className="tag-remove"
+                  title="Remove tag"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {editingTags ? (
+              <div className="tag-input-wrapper">
+                <input
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleAddTag();
+                    } else if (e.key === 'Escape') {
+                      setEditingTags(false);
+                      setTagInput('');
+                    }
+                  }}
+                  onBlur={() => {
+                    handleAddTag();
+                    setEditingTags(false);
+                  }}
+                  className="tag-input"
+                  placeholder="Add tag..."
+                  autoFocus
+                />
+                {suggestedTags.length > 0 && tagInput && (
+                  <div className="tag-suggestions">
+                    {suggestedTags.slice(0, 5).map((tag) => (
+                      <div
+                        key={tag}
+                        className="tag-suggestion"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setTagInput(tag);
+                        }}
+                      >
+                        {tag}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => setEditingTags(true)}
+                className="tag-add-btn"
+                title="Add tag"
+              >
+                + Add Tag
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -435,10 +623,19 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
       )}
 
       <div className="tests-section">
-        <h3>Test Files ({tests.length})</h3>
+        <div className="section-header">
+          <h3>Test Files ({tests.length})</h3>
+          <button
+            onClick={onScan}
+            disabled={scanning}
+            className="btn btn-primary btn-small"
+          >
+            {scanning ? 'Scanning...' : 'Scan'}
+          </button>
+        </div>
         {tests.length === 0 ? (
           <div className="no-tests">
-            <p>No test files found. Click "Scan for Tests" to search for test files.</p>
+            <p>No test files found. Click "Scan" to search for test files.</p>
           </div>
         ) : (
           <div className="tests-list">
@@ -466,6 +663,27 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
           Jenkins job statuses and build information for your projects.
         </p>
       </div>
+
+      {onRemoveProject && (
+        <div className="danger-zone">
+          <h3>Danger Zone</h3>
+          <p className="danger-zone-text">Once you delete a project, there is no going back. Please be certain.</p>
+          <button
+            onClick={async () => {
+              const confirmed = confirm(
+                `Are you sure you want to remove "${project.name}"?\n\nThis will delete the project from PROJAX (not from your filesystem).\n\nThis action cannot be undone.`
+              );
+              if (confirmed) {
+                await onRemoveProject(project.id);
+              }
+            }}
+            className="btn btn-danger"
+            title="Remove project"
+          >
+            Delete Project
+          </button>
+        </div>
+      )}
     </div>
   );
 };

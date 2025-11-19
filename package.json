@@ -1,19 +1,21 @@
 {
   "name": "prx-workspace",
-  "version": "1.3.0",
+  "version": "1.3.10",
   "description": "projax - Cross-platform project management dashboard with CLI and web interface",
   "private": true,
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build:core && npm run build:api && npm run build:cli && npm run build:desktop",
+    "build": "npm run build:core && npm run build:api && npm run build:cli && npm run build:desktop && npm run build:prxi",
     "build:core": "npm run build --workspace=packages/core",
     "build:api": "npm run build --workspace=packages/api",
     "build:cli": "npm run build --workspace=packages/cli",
     "build:desktop": "npm run build --workspace=packages/desktop",
+    "build:prxi": "npm run build --workspace=packages/prxi",
     "dev:desktop": "npm run dev --workspace=packages/desktop",
     "dev:api": "npm run dev --workspace=packages/api",
+    "dev:prxi": "npm run dev --workspace=packages/prxi",
     "clean": "npm run clean --workspaces && rm -rf node_modules",
     "postinstall": "npm run build:core && npm run build:api",
     "version": "node scripts/bump-version.js",

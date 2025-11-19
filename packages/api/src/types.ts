@@ -3,8 +3,11 @@ export interface Project {
   id: number;
   name: string;
   path: string;
+  description: string | null;
+  framework: string | null;
   last_scanned: number | null;
   created_at: number;
+  tags?: string[];
 }
 
 export interface Test {

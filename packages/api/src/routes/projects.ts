@@ -7,6 +7,17 @@ import * as fs from 'fs';
 const router = Router();
 const db = getDatabase();
 
+// GET /api/projects/tags - Get all unique tags
+router.get('/tags', (req: Request, res: Response) => {
+  try {
+    const tags = db.getAllTags();
+    res.json(tags);
+  } catch (error) {
+    console.error('Error getting tags:', error);
+    res.status(500).json({ error: 'Failed to get tags' });
+  }
+});
+
 // GET /api/projects - List all projects
 router.get('/', (req: Request, res: Response) => {
   try {
@@ -49,7 +60,8 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 // GET /api/projects/:id - Get project details
-router.get('/:id', (req: Request, res: Response) => {
+// Using regex to only match numeric IDs, allowing /tags to be matched first
+router.get('/:id(\\d+)', (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
@@ -68,27 +80,35 @@ router.get('/:id', (req: Request, res: Response) => {
 });
 
 // PUT /api/projects/:id - Update project
-router.put('/:id', (req: Request, res: Response) => {
+router.put('/:id(\\d+)', (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
     
-    const { name } = req.body;
-    if (name !== undefined) {
-      const updated = db.updateProjectName(id, name);
-      res.json(updated);
-    } else {
-      res.status(400).json({ error: 'Name is required' });
+    const { name, description, framework, tags } = req.body;
+    
+    // Use the updateProject method for partial updates
+    const updates: any = {};
+    if (name !== undefined) updates.name = name;
+    if (description !== undefined) updates.description = description;
+    if (framework !== undefined) updates.framework = framework;
+    if (tags !== undefined) updates.tags = tags;
+    
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
     }
+    
+    const updated = db.updateProject(id, updates);
+    res.json(updated);
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to update project' });
   }
 });
 
 // DELETE /api/projects/:id - Remove project
-router.delete('/:id', (req: Request, res: Response) => {
+router.delete('/:id(\\d+)', (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
@@ -108,7 +128,7 @@ router.delete('/:id', (req: Request, res: Response) => {
 });
 
 // GET /api/projects/:id/tests - Get tests for project
-router.get('/:id/tests', (req: Request, res: Response) => {
+router.get('/:id(\\d+)/tests', (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
@@ -128,7 +148,7 @@ router.get('/:id/tests', (req: Request, res: Response) => {
 });
 
 // GET /api/projects/:id/ports - Get project ports
-router.get('/:id/ports', (req: Request, res: Response) => {
+router.get('/:id(\\d+)/ports', (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
@@ -147,8 +167,19 @@ router.get('/:id/ports', (req: Request, res: Response) => {
   }
 });
 
+// POST /api/projects/scan/all - Scan all projects
+// NOTE: This route must be defined before /:id/scan to avoid route conflicts
+router.post('/scan/all', (req: Request, res: Response) => {
+  try {
+    const results = scanAllProjects();
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to scan projects' });
+  }
+});
+
 // POST /api/projects/:id/scan - Scan project for tests
-router.post('/:id/scan', (req: Request, res: Response) => {
+router.post('/:id(\\d+)/scan', (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
@@ -159,16 +190,6 @@ router.post('/:id/scan', (req: Request, res: Response) => {
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to scan project' });
-  }
-});
-
-// POST /api/projects/scan/all - Scan all projects
-router.post('/scan/all', (req: Request, res: Response) => {
-  try {
-    const results = scanAllProjects();
-    res.json(results);
-  } catch (error) {
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to scan projects' });
   }
 });
 

@@ -1,56 +1,103 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import './ProjectSearch.css';
 
 type Project = any;
 
 export type FilterType = 'all' | 'name' | 'path' | 'ports' | 'testCount' | 'running';
+export type SortType = 'name-asc' | 'name-desc' | 'recent' | 'oldest' | 'tests' | 'running';
 
 interface ProjectSearchProps {
   onSearchChange: (query: string, filterType: FilterType) => void;
+  onSortChange?: (sortType: SortType) => void;
+  searchInputRef?: React.RefObject<HTMLInputElement>;
 }
 
-const ProjectSearch: React.FC<ProjectSearchProps> = ({ onSearchChange }) => {
+const ProjectSearch: React.FC<ProjectSearchProps> = ({ onSearchChange, onSortChange, searchInputRef }) => {
   const [query, setQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
+  const [sortType, setSortType] = useState<SortType>('name-asc');
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const internalInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = searchInputRef || internalInputRef;
 
   const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newQuery = e.target.value;
     setQuery(newQuery);
-    onSearchChange(newQuery, filterType);
+    onSearchChange(newQuery, 'all');
   };
 
-  const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newFilterType = e.target.value as FilterType;
-    setFilterType(newFilterType);
-    onSearchChange(query, newFilterType);
+  const handleSortChange = (newSort: SortType) => {
+    setSortType(newSort);
+    setShowSortMenu(false);
+    if (onSortChange) {
+      onSortChange(newSort);
+    }
   };
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowSortMenu(false);
+      }
+    };
+
+    if (showSortMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showSortMenu]);
+
+  const sortOptions: { value: SortType; label: string }[] = [
+    { value: 'name-asc', label: 'Name (A-Z)' },
+    { value: 'name-desc', label: 'Name (Z-A)' },
+    { value: 'recent', label: 'Recently Scanned' },
+    { value: 'oldest', label: 'Oldest First' },
+    { value: 'tests', label: 'Most Tests' },
+    { value: 'running', label: 'Running First' },
+  ];
 
   return (
     <div className="project-search">
-      <div className="search-input-group">
-        <input
-          type="text"
-          placeholder="Search projects..."
-          value={query}
-          onChange={handleQueryChange}
-          className="search-input"
-        />
-        <select
-          value={filterType}
-          onChange={handleFilterChange}
-          className="search-filter"
-        >
-          <option value="all">All Fields</option>
-          <option value="name">Name</option>
-          <option value="path">Path</option>
-          <option value="ports">Ports</option>
-          <option value="testCount">Test Count</option>
-          <option value="running">Running Status</option>
-        </select>
+      <div className="search-input-group" ref={menuRef}>
+        <div className="search-input-wrapper">
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Search projects... (⌘/)"
+            value={query}
+            onChange={handleQueryChange}
+            className="search-input"
+          />
+          <button
+            className="sort-icon-btn"
+            onClick={() => setShowSortMenu(!showSortMenu)}
+            title="Sort options"
+            tabIndex={0}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M3 4h10M3 8h7M3 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+        {showSortMenu && (
+          <div className="sort-menu">
+            {sortOptions.map((option) => (
+              <div
+                key={option.value}
+                className={`sort-menu-item ${sortType === option.value ? 'active' : ''}`}
+                onClick={() => handleSortChange(option.value)}
+              >
+                {option.label}
+                {sortType === option.value && <span className="checkmark">✓</span>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 export default ProjectSearch;
-

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 // Import types from core (types are compile-time only)
-import type { Project, Test } from '@projax/core';
+import type { Project, Test } from 'projax-core';
 
 export interface ProjectScript {
   name: string;
@@ -24,6 +24,12 @@ export interface ProjectPort {
   created_at: number;
 }
 
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI;
+  }
+}
+
 export interface ElectronAPI {
   getProjects: () => Promise<Project[]>;
   addProject: (path: string) => Promise<Project>;
@@ -36,6 +42,7 @@ export interface ElectronAPI {
   maximizeWindow: () => Promise<void>;
   closeWindow: () => Promise<void>;
   renameProject: (projectId: number, newName: string) => Promise<Project>;
+  updateProject: (projectId: number, updates: { description?: string | null }) => Promise<Project>;
   getProjectScripts: (projectPath: string) => Promise<ProjectScripts>;
   runScript: (projectPath: string, scriptName: string, args?: string[], background?: boolean) => Promise<{ success: boolean; background: boolean }>;
   scanProjectPorts: (projectId: number) => Promise<ProjectPort[]>;
@@ -63,6 +70,7 @@ export interface ElectronAPI {
     editor: { type: string; customPath?: string };
     browser: { type: string; customPath?: string };
   }) => Promise<void>;
+  openExternal: (url: string) => void;
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -77,6 +85,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
   closeWindow: () => ipcRenderer.invoke('close-window'),
   renameProject: (projectId: number, newName: string) => ipcRenderer.invoke('rename-project', projectId, newName),
+  updateProject: (projectId: number, updates: any) => ipcRenderer.invoke('update-project', projectId, updates),
   getProjectScripts: (projectPath: string) => ipcRenderer.invoke('get-project-scripts', projectPath),
   runScript: (projectPath: string, scriptName: string, args?: string[], background?: boolean) => ipcRenderer.invoke('run-script', projectPath, scriptName, args, background),
   scanProjectPorts: (projectId: number) => ipcRenderer.invoke('scan-project-ports', projectId),
@@ -87,6 +96,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopProject: (projectPath: string) => ipcRenderer.invoke('stop-project', projectPath),
   openUrl: (url: string) => ipcRenderer.invoke('open-url', url),
   openInEditor: (projectPath: string) => ipcRenderer.invoke('open-in-editor', projectPath),
+  openExternal: (url: string) => ipcRenderer.send('open-external-url', url),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
 } as ElectronAPI);

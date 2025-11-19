@@ -1,22 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
-// Import from bundled core in CLI package
-let coreModule: any;
-try {
-  // Try relative import first (when bundled in CLI: dist/electron/main.js -> ../../core/dist)
-  coreModule = require('../../core/dist');
-} catch {
-  try {
-    // Try alternative path (local development: packages/desktop/dist/main.js -> ../../core/dist)
-    coreModule = require('../../core/dist');
-  } catch {
-    // Last try
-    coreModule = require('../../../core/dist');
-  }
-}
-const {
+import {
   getDatabaseManager,
   getAllProjects,
   addProject,
@@ -24,10 +10,8 @@ const {
   scanProject,
   scanAllProjects,
   getTestsByProject,
-} = coreModule;
-
-// Import types separately
-import type { Project, Test } from '@projax/core';
+} from './core';
+import type { Project, Test } from 'projax-core';
 
 let mainWindow: BrowserWindow | null = null;
 let apiProcess: ChildProcess | null = null;
@@ -60,7 +44,7 @@ if (!gotTheLock) {
       width: 1200,
       height: 800,
       frame: false,
-      titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'hidden',
+      titleBarStyle: 'hidden',
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         nodeIntegration: false,
@@ -89,6 +73,21 @@ if (!gotTheLock) {
         app.quit();
       }
     }
+
+    // Handle external links securely
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+      // Only allow http/https links to be opened externally for security
+      const isExternal = url.startsWith('http:') || url.startsWith('https:');
+      
+      if (isExternal) {
+        shell.openExternal(url);
+        // Deny the default action of opening a new Electron window/tab
+        return { action: 'deny' };
+      }
+      
+      // For internal or non-web links, allow the default behavior
+      return { action: 'allow' };
+    });
 
     mainWindow.on('closed', () => {
       mainWindow = null;
@@ -271,6 +270,13 @@ ipcMain.handle('close-window', () => {
   }
 });
 
+// Update project
+ipcMain.handle('update-project', async (_, projectId: number, updates: { description?: string | null }) => {
+  const db = getDatabaseManager();
+  const updated = db.updateProject(projectId, updates);
+  return updated;
+});
+
 // Rename project
 ipcMain.handle('rename-project', async (_, projectId: number, newName: string): Promise<Project> => {
   const db = getDatabaseManager();
@@ -306,6 +312,7 @@ ipcMain.handle('get-project-scripts', async (_, projectPath: string) => {
 
 // Run script
 ipcMain.handle('run-script', async (_, projectPath: string, scriptName: string, args: string[] = [], background: boolean = false) => {
+  try {
   // Try bundled path first (when bundled in CLI: dist/electron/main.js -> dist/script-runner.js)
   // Then try local dev path (packages/desktop/dist/main.js -> packages/cli/dist/script-runner.js)
   const bundledScriptRunnerPath = path.join(__dirname, '..', 'script-runner.js');
@@ -314,11 +321,19 @@ ipcMain.handle('run-script', async (_, projectPath: string, scriptName: string, 
   let scriptRunnerPath: string;
   if (fs.existsSync(bundledScriptRunnerPath)) {
     scriptRunnerPath = bundledScriptRunnerPath;
+    } else if (fs.existsSync(localScriptRunnerPath)) {
+      scriptRunnerPath = localScriptRunnerPath;
   } else {
-    scriptRunnerPath = localScriptRunnerPath;
+      throw new Error(`Script runner not found. Tried: ${bundledScriptRunnerPath} and ${localScriptRunnerPath}`);
   }
   
-  const { runScriptInBackground } = await import(scriptRunnerPath);
+    const scriptRunnerModule = await import(scriptRunnerPath);
+    const { runScriptInBackground } = scriptRunnerModule;
+    
+    if (!runScriptInBackground || typeof runScriptInBackground !== 'function') {
+      throw new Error('runScriptInBackground function not found in script runner module');
+    }
+    
   const db = getDatabaseManager();
   const project = db.getProjectByPath(projectPath);
   
@@ -327,8 +342,12 @@ ipcMain.handle('run-script', async (_, projectPath: string, scriptName: string, 
   }
   
   // Run in background (foreground scripts would need IPC streaming for output)
-  await runScriptInBackground(projectPath, project.name, scriptName, args, false);
-  return { success: true, background: true };
+    const pid = await runScriptInBackground(projectPath, project.name, scriptName, args, false);
+    return { success: true, background: true, pid };
+  } catch (error) {
+    console.error('Error running script:', error);
+    throw error;
+  }
 });
 
 // Scan ports
@@ -395,8 +414,8 @@ ipcMain.handle('get-running-processes', async () => {
     scriptRunnerPath = localScriptRunnerPath;
   }
   
-  const { getRunningProcesses } = await import(scriptRunnerPath);
-  return getRunningProcesses();
+  const { getRunningProcessesClean } = await import(scriptRunnerPath);
+  return await getRunningProcessesClean();
 });
 
 // Stop script by PID
@@ -449,7 +468,8 @@ ipcMain.handle('open-url', async (_, url: string) => {
     corePath = localCorePath;
   }
   
-  const { getBrowserSettings } = await import(corePath);
+  const coreModule = require(corePath);
+  const { getBrowserSettings } = coreModule;
   const browserSettings = getBrowserSettings();
   
   let command: string;
@@ -529,19 +549,19 @@ ipcMain.handle('open-url', async (_, url: string) => {
 
 // Open project in editor
 ipcMain.handle('open-in-editor', async (_, projectPath: string) => {
-  // Try bundled path first (when bundled in CLI: dist/electron/main.js -> dist/core)
-  // Then try local dev path (packages/desktop/dist/main.js -> packages/core/dist)
-  const bundledCorePath = path.join(__dirname, '..', 'core');
-  const localCorePath = path.join(__dirname, '..', '..', '..', 'core', 'dist');
+  // Try bundled path first (when bundled in CLI: dist/electron/main.js -> dist/core/settings)
+  // Then try local dev path (packages/desktop/dist/main.js -> packages/core/dist/settings)
+  const bundledSettingsPath = path.join(__dirname, '..', 'core', 'settings');
+  const localSettingsPath = path.join(__dirname, '..', '..', '..', 'core', 'dist', 'settings');
   
-  let corePath: string;
-  if (fs.existsSync(bundledCorePath)) {
-    corePath = bundledCorePath;
+  let settingsPath: string;
+  if (fs.existsSync(bundledSettingsPath + '.js')) {
+    settingsPath = bundledSettingsPath;
   } else {
-    corePath = localCorePath;
+    settingsPath = localSettingsPath;
   }
   
-  const { getEditorSettings } = await import(corePath);
+  const { getEditorSettings } = require(settingsPath);
   const editorSettings = getEditorSettings();
   
   let command: string;
@@ -578,22 +598,18 @@ ipcMain.handle('open-in-editor', async (_, projectPath: string) => {
 // Get settings
 ipcMain.handle('get-settings', async () => {
   try {
-    // Use the same import pattern as other handlers
-    let settingsModule: any;
-    try {
-      // Try relative import first (when bundled in CLI: dist/electron/main.js -> dist/core)
-      settingsModule = require('../core');
-    } catch {
-      try {
-        // Try alternative path (local development: packages/desktop/dist/main.js -> packages/cli/dist/core)
-        settingsModule = require('../../cli/dist/core');
-      } catch {
-        // Fallback to package import
-        settingsModule = require('@projax/core');
-      }
+    // Load settings module directly
+    const bundledSettingsPath = path.join(__dirname, '..', 'core', 'settings');
+    const localSettingsPath = path.join(__dirname, '..', '..', '..', 'core', 'dist', 'settings');
+    
+    let settingsPath: string;
+    if (fs.existsSync(bundledSettingsPath + '.js')) {
+      settingsPath = bundledSettingsPath;
+    } else {
+      settingsPath = localSettingsPath;
     }
     
-    const { getAppSettings } = settingsModule;
+    const { getAppSettings } = require(settingsPath);
     return getAppSettings();
   } catch (error) {
     console.error('Error getting settings:', error);
@@ -607,27 +623,38 @@ ipcMain.handle('save-settings', async (_, settings: {
   browser: { type: string; customPath?: string };
 }) => {
   try {
-    // Use the same import pattern as other handlers
-    let settingsModule: any;
-    try {
-      // Try relative import first (when bundled in CLI: dist/electron/main.js -> dist/core)
-      settingsModule = require('../core');
-    } catch {
-      try {
-        // Try alternative path (local development: packages/desktop/dist/main.js -> packages/cli/dist/core)
-        settingsModule = require('../../cli/dist/core');
-      } catch {
-        // Fallback to package import
-        settingsModule = require('@projax/core');
-      }
+    // Load settings module directly
+    const bundledSettingsPath = path.join(__dirname, '..', 'core', 'settings');
+    const localSettingsPath = path.join(__dirname, '..', '..', '..', 'core', 'dist', 'settings');
+    
+    let settingsPath: string;
+    if (fs.existsSync(bundledSettingsPath + '.js')) {
+      settingsPath = bundledSettingsPath;
+    } else {
+      settingsPath = localSettingsPath;
     }
     
-    const { setAppSettings } = settingsModule;
+    const { setAppSettings } = require(settingsPath);
     setAppSettings(settings);
     console.log('Settings saved successfully');
   } catch (error) {
     console.error('Error saving settings:', error);
     throw error;
+  }
+});
+
+// Open external URL securely (for anchor tags and manual calls)
+ipcMain.on('open-external-url', (event, url: string) => {
+  try {
+    // SECURITY: Ensure only http/https links to prevent arbitrary file execution
+    const parsedUrl = new URL(url);
+    if (['http:', 'https:'].includes(parsedUrl.protocol)) {
+      shell.openExternal(url);
+    } else {
+      console.warn(`Blocked attempt to open non-http/https URL: ${url}`);
+    }
+  } catch (error) {
+    console.error('Error opening external URL:', error);
   }
 });
 

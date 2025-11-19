@@ -217,30 +217,32 @@ prx pwd
 
 #### `prx cd [project]`
 
-Output a shell `cd` command that can be evaluated to change to the project directory.
+Change to a project directory. Outputs a shell command that changes directory.
 
 **Examples:**
 ```bash
-# Output cd command by ID
-prx cd 1
+# Change directory by ID
+eval "$(prx cd 1)"
 
-# Use with eval to actually change directory
-eval $(prx cd 1)
-eval $(prx cd "My Project")
+# Change directory by name
+eval "$(prx cd projax)"
+
+# Interactive selection
+eval "$(prx cd)"
 
 # Create a shell function for convenience
-prxcd() { eval $(prx cd "$@"); }
+prxcd() { eval "$(prx cd $@)"; }
 # Then use: prxcd 1
 ```
 
 **Shell Integration Tip:** Add this to your `~/.zshrc` or `~/.bashrc`:
 ```bash
 prxcd() {
-  eval $(prx cd "$@")
+  eval "$(prx cd $@)"
 }
 ```
 
-Then simply use: `prxcd 1` or `prxcd "My Project"`
+Then simply use: `prxcd 1` or `prxcd projax`
 
 #### `prx <project> [script] [args...]`
 
@@ -286,6 +288,87 @@ prx 1 dev -M --force
 - **Rust**: Runs common `cargo` commands (build, run, test, etc.)
 - **Go**: Runs common `go` commands or Makefile targets
 - **Makefile**: Runs Makefile targets
+
+#### `prx run <project> <script>`
+
+Run a script from a project with explicit command syntax.
+
+**Options:**
+- `-b, --background`: Run script in background mode
+- `-f, --force`: Auto-resolve port conflicts
+
+**Examples:**
+```bash
+# Run a script in foreground
+prx run 1 dev
+prx run projax build
+
+# Run in background
+prx run 1 dev --background
+prx run projax dev -b
+
+# Auto-resolve port conflicts
+prx run 1 dev --force
+prx run 1 dev -b -f
+```
+
+#### `prx ps`
+
+List all running background processes.
+
+**Examples:**
+```bash
+prx ps
+
+# Output shows:
+# Running processes (3):
+#
+#   PID 12345: projax (dev) - 5m 30s
+#   Command: npm run dev
+#   Logs: /Users/username/.projax/logs/process-1234567890-dev.log
+#   URLs: http://localhost:3000
+```
+
+#### `prx stop <pid>`
+
+Stop a running background process.
+
+**Examples:**
+```bash
+# Stop process by PID
+prx stop 12345
+
+# Find PIDs with ps command
+prx ps
+```
+
+#### `prx prxi` / `prx i`
+
+Launch the interactive terminal UI - a full-screen terminal interface for managing projects.
+
+**Features:**
+- Navigate projects with arrow keys or vim bindings (j/k)
+- View project details, tests, ports, and running scripts
+- Scan projects for tests and ports
+- Stop running scripts
+- Full-height columns with independent scrolling
+
+**Keyboard Shortcuts:**
+- `↑/k` - Move up in project list
+- `↓/j` - Move down in project list
+- `Tab/←/→` - Switch between project list and details
+- `s` - Scan selected project
+- `p` - Scan ports for selected project
+- `r` - Show available scripts
+- `x` - Stop all scripts for selected project
+- `?` - Show help
+- `q/Esc` - Quit
+
+**Examples:**
+```bash
+prx i         # Short alias
+prx prxi      # Full command
+```
 
 #### `prx scan-ports [project]`
 
