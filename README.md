@@ -1,6 +1,14 @@
 # projax
 
-A cross-platform project management dashboard for tracking local development projects. Features a powerful CLI tool, interactive Terminal UI (TUI), Desktop app (Electron-based), VS Code/Cursor/Windsurf extension, REST API, and built-in tools for test detection, port management, and script execution.
+A cross-platform project management dashboard for tracking local development projects. Features a powerful CLI tool, interactive Terminal UI (TUI), Desktop app (Electron-based), **VS Code/Cursor/Windsurf extension**, REST API, and built-in tools for test detection, port management, and script execution.
+
+## 🌟 Key Interfaces
+
+- **🖥️ CLI**: Full-featured command-line tool - `prx <command>`
+- **⚡ Terminal UI**: Interactive TUI with real-time updates - `prx i`
+- **🎨 Desktop App**: Beautiful Electron-based UI - `prx web`
+- **📝 Editor Extension**: Native sidebar for VS Code, Cursor, and Windsurf - [Get Extension](#vscode-cursorf-windsurf-extension)
+- **🔌 REST API**: Express-based API server for integrations
 
 ## Features
 
@@ -28,31 +36,39 @@ npm install -g projax
 
 After installation, the `prx` command will be available globally.
 
-### VS Code/Cursor/Windsurf Extension
+## VS Code/Cursor/Windsurf Extension
 
-PROJAX includes a native extension for VS Code-based editors (VS Code, Cursor, Windsurf) that brings project management directly into your editor's sidebar.
+**PROJAX for Editors** brings the power of PROJAX directly into your editor's sidebar with a native extension for VS Code, Cursor, and Windsurf.
 
-**Installation:**
+### 🎯 Features
+
+- **📂 Projects Browser**: Search and browse all PROJAX projects in a sidebar panel
+- **🎯 Auto-Detection**: Automatically detects and highlights the current workspace project
+- **📊 Project Details**: View tests, ports, scripts, and statistics at a glance
+- **▶️ Script Execution**: Run and stop npm/yarn scripts directly from the editor
+- **🔗 Quick Access**: One-click access to development server URLs
+- **⌨️ Command Palette**: 13 PROJAX commands accessible via `Cmd+Shift+P`
+- **🔄 Real-Time Updates**: Live process status and port information
+- **🎨 Native UI**: Beautiful sidebar panels that match your editor's theme
+
+### 📦 Installation
 
 ```bash
-# Get installation instructions
+# Get installation instructions and .vsix location
 prx vscode-extension
 
-# Or install directly with:
-code --install-extension ./release/projax-vscode-3.0.0.vsix
-cursor --install-extension ./release/projax-vscode-3.0.0.vsix
-windsurf --install-extension ./release/projax-vscode-3.0.0.vsix
+# Or install directly:
+code --install-extension ./release/projax-vscode-3.0.0.vsix      # VS Code
+cursor --install-extension ./release/projax-vscode-3.0.0.vsix    # Cursor
+windsurf --install-extension ./release/projax-vscode-3.0.0.vsix  # Windsurf
 ```
 
-**Features:**
-- View and search all PROJAX projects in a sidebar panel
-- Auto-detect and highlight the current workspace project
-- View project details, tests, ports, and scripts
-- Run/stop npm scripts directly from the editor
-- Open projects in new windows or add to workspace
-- Full command palette integration
+### 📚 Documentation
 
-See the [Extension Documentation](https://projax.dev/docs/editors) for more details.
+- [Extension Overview](https://projax.dev/docs/editors/overview)
+- [Installation Guide](https://projax.dev/docs/editors/installation)
+- [Usage Guide](https://projax.dev/docs/editors/usage)
+- [Command Reference](https://projax.dev/docs/editors/commands)
 
 ### Database Setup
 
