@@ -237,16 +237,34 @@ program
         process.exit(1);
       }
       
-      // Run prxi source using tsx
-      const { spawn } = require('child_process');
-      const child = spawn(tsxBin, [prxiPath], {
-        stdio: 'inherit',
-        cwd: path.dirname(prxiPath),
-      });
+      // Run prxi using npm run dev
+      const { spawn} = require('child_process');
       
-      child.on('exit', (code: number | null) => {
-        process.exit(code || 0);
-      });
+      // Get the prxi package directory (prxi/src/index.tsx -> prxi)
+      const prxiPackageDir = path.dirname(path.dirname(prxiPath));
+      const prxiPackageJson = path.join(prxiPackageDir, 'package.json');
+      
+      // If in workspace (package.json exists), use npm run dev for proper module resolution
+      if (fs.existsSync(prxiPackageJson)) {
+        const child = spawn('npm', ['run', 'dev'], {
+          stdio: 'inherit',
+          cwd: prxiPackageDir,
+        });
+        
+        child.on('exit', (code: number | null) => {
+          process.exit(code || 0);
+        });
+      } else {
+        // Fallback to tsx for bundled/published version
+        const child = spawn(tsxBin, [prxiPath], {
+          stdio: 'inherit',
+          cwd: path.dirname(prxiPath),
+        });
+        
+        child.on('exit', (code: number | null) => {
+          process.exit(code || 0);
+        });
+      }
     } catch (error) {
       console.error('Error launching prxi:', error instanceof Error ? error.message : error);
       process.exit(1);
