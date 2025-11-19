@@ -2,6 +2,10 @@
 
 All PROJAX features are accessible via the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`). Type "PROJAX" to filter commands.
 
+![PROJAX Command Palette](/img/vscode-command-palette.png)
+
+*Command Palette showing all available PROJAX commands*
+
 ## Project Management
 
 ### PROJAX: Open Project

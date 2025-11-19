@@ -2,6 +2,10 @@
 
 PROJAX for Editors is a native extension for VS Code-based editors (VS Code, Cursor, Windsurf) that brings the power of PROJAX project management directly into your editor's sidebar.
 
+![PROJAX Command Palette](/img/vscode-command-palette.png)
+
+*PROJAX command palette showing all available commands*
+
 ## Overview
 
 The extension provides two main panels in your editor's sidebar:

@@ -188,6 +188,6 @@ The extension works independently in each editor window. Each instance:
 ## Next Steps
 
 - [Commands Reference](./commands.md) - Complete list of all commands
-- [Features](./features.md) - Detailed feature documentation
-- [Integration](./integration.md) - Integration with other tools
+- [Installation Guide](./installation.md) - Installation instructions
+- [Overview](./overview.md) - Feature overview and capabilities
 
