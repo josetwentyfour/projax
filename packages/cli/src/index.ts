@@ -1602,31 +1602,34 @@ program
         console.log('   npm run package --workspace=packages/vscode-extension\n');
       } else {
         const vsixPath = path.join(releaseDir, vsixFiles[0]);
-        console.log(`✅ Extension package: ${vsixFiles[0]}`);
+        console.log(`✅ Extension: ${vsixFiles[0]}`);
         console.log(`📁 Location: ${vsixPath}\n`);
         
-        console.log('📖 Installation Instructions:\n');
-        console.log('1. Open VS Code, Cursor, or Windsurf');
-        console.log('2. Go to Extensions (Cmd+Shift+X / Ctrl+Shift+X)');
-        console.log('3. Click the "..." menu → "Install from VSIX..."');
-        console.log(`4. Navigate to: ${releaseDir}`);
-        console.log(`5. Select: ${vsixFiles[0]}\n`);
-        
-        console.log('🚀 Quick Install:\n');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('🚀 QUICK INSTALL (Easiest Method)');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         console.log(`   code --install-extension "${vsixPath}"`);
         console.log(`   cursor --install-extension "${vsixPath}"`);
         console.log(`   windsurf --install-extension "${vsixPath}"\n`);
         
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('📖 Manual Installation');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        console.log('1. Open VS Code, Cursor, or Windsurf');
+        console.log('2. Go to Extensions (Cmd+Shift+X / Ctrl+Shift+X)');
+        console.log('3. Click the "..." menu → "Install from VSIX..."');
+        console.log(`4. Select: ${vsixPath}\n`);
+        
         // Open in Finder/Explorer
         const platform = process.platform;
         if (platform === 'darwin') {
-          console.log('💡 Open in Finder:');
+          console.log('💡 Open release folder in Finder:');
           console.log(`   open "${releaseDir}"\n`);
         } else if (platform === 'win32') {
-          console.log('💡 Open in Explorer:');
+          console.log('💡 Open release folder in Explorer:');
           console.log(`   explorer "${releaseDir}"\n`);
         } else {
-          console.log('💡 Open in File Manager:');
+          console.log('💡 Open release folder:');
           console.log(`   xdg-open "${releaseDir}"\n`);
         }
       }

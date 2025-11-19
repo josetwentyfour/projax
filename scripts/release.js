@@ -88,13 +88,18 @@ async function main() {
   // 3. Build all packages
   exec('npm run build', 'Build all packages');
 
-  // 3.5 Package VS Code extension
+  // 3.5 Copy README to CLI package for npm
+  console.log('\n📄 Copying README to CLI package...');
+  exec('cp README.md packages/cli/README.md', 'Copy README to CLI');
+  console.log('✓ README copied to CLI package');
+
+  // 3.6 Package VS Code extension
   console.log('\n📦 Packaging VS Code extension...');
   exec('mkdir -p release', 'Create release directory');
   exec('npm run package --workspace=packages/vscode-extension', 'Package .vsix file');
   console.log('✓ VS Code extension packaged to ./release/');
 
-  // 3.6 Test with npm link
+  // 3.7 Test with npm link
   console.log('\n🧪 Testing commands with npm link...');
   exec('cd packages/cli && npm link', 'Link CLI for testing');
   
