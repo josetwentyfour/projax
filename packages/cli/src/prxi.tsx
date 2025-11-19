@@ -157,6 +157,82 @@ const ErrorModal: React.FC<ErrorModalProps> = ({ message, onClose }) => {
   );
 };
 
+interface ScriptSelectionModalProps {
+  scripts: Map<string, any>;
+  projectName: string;
+  projectPath: string;
+  onSelect: (scriptName: string, background: boolean) => void;
+  onClose: () => void;
+}
+
+const ScriptSelectionModal: React.FC<ScriptSelectionModalProps> = ({ 
+  scripts, 
+  projectName, 
+  projectPath, 
+  onSelect, 
+  onClose 
+}) => {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const scriptArray = Array.from(scripts.entries());
+
+  useInput((input: string, key: any) => {
+    if (key.escape || input === 'q') {
+      onClose();
+      return;
+    }
+
+    if (key.upArrow || input === 'k') {
+      setSelectedIndex((prev) => Math.max(0, prev - 1));
+      return;
+    }
+
+    if (key.downArrow || input === 'j') {
+      setSelectedIndex((prev) => Math.min(scriptArray.length - 1, prev + 1));
+      return;
+    }
+
+    if (key.return) {
+      const [scriptName] = scriptArray[selectedIndex];
+      onSelect(scriptName, false);
+      return;
+    }
+
+    if (input === 'b') {
+      const [scriptName] = scriptArray[selectedIndex];
+      onSelect(scriptName, true);
+      return;
+    }
+  });
+
+  return (
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      borderColor={colors.accentCyan}
+      padding={1}
+      width={80}
+    >
+      <Text bold color={colors.accentCyan}>
+        Run Script - {projectName}
+      </Text>
+      <Text> </Text>
+      {scriptArray.map(([name, script], index) => {
+        const isSelected = index === selectedIndex;
+        return (
+          <Text key={name} color={isSelected ? colors.accentCyan : colors.textPrimary} bold={isSelected}>
+            {isSelected ? '▶ ' : '  '}
+            <Text color={colors.accentGreen}>{name}</Text>
+            {' - '}
+            <Text color={colors.textSecondary}>{truncateText(script.command, 50)}</Text>
+          </Text>
+        );
+      })}
+      <Text> </Text>
+      <Text color={colors.textSecondary}>↑↓/kj: Navigate | Enter: Run | b: Background | Esc/q: Cancel</Text>
+    </Box>
+  );
+};
+
 interface ProjectListProps {
   projects: Project[];
   selectedIndex: number;
@@ -686,6 +762,10 @@ const App: React.FC = () => {
   const [listScrollOffset, setListScrollOffset] = useState(0);
   const [detailsScrollOffset, setDetailsScrollOffset] = useState(0);
   
+  // Script selection state
+  const [showScriptModal, setShowScriptModal] = useState(false);
+  const [scriptModalData, setScriptModalData] = useState<{ scripts: Map<string, any>; projectName: string; projectPath: string } | null>(null);
+  
   // Get terminal dimensions
   const terminalHeight = process.stdout.rows || 24;
   const availableHeight = terminalHeight - 3; // Subtract status bar
@@ -896,6 +976,31 @@ const App: React.FC = () => {
     return Array.from(urls).sort();
   };
 
+  // Handler for script selection
+  const handleScriptSelect = async (scriptName: string, background: boolean) => {
+    if (!scriptModalData) return;
+    
+    setShowScriptModal(false);
+    setIsLoading(true);
+    setLoadingMessage(`Running ${scriptName}${background ? ' in background' : ''}...`);
+    
+    try {
+      if (background) {
+        await runScriptInBackground(scriptModalData.projectPath, scriptModalData.projectName, scriptName, [], false);
+        setIsLoading(false);
+        await loadRunningProcesses();
+      } else {
+        setIsLoading(false);
+        // Run in foreground - the CLI will exit and terminal control will be handed over
+        await runScript(scriptModalData.projectPath, scriptName, [], false);
+        exit();
+      }
+    } catch (err) {
+      setIsLoading(false);
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   useInput((input: string, key: any) => {
     // Handle search mode
     if (showSearch) {
@@ -929,7 +1034,7 @@ const App: React.FC = () => {
     }
     
     // Don't process input if modal is showing
-    if (showHelp || isLoading || error || showUrls) {
+    if (showHelp || isLoading || error || showUrls || showScriptModal) {
       // Handle URLs modal
       if (showUrls && (key.escape || key.return || input === 'q' || input === 'u')) {
         setShowUrls(false);
@@ -1175,28 +1280,22 @@ const App: React.FC = () => {
 
     // Run script
     if (input === 'r' && selectedProject) {
-      setIsLoading(true);
-      setLoadingMessage('Select script to run...');
-      
-      setTimeout(async () => {
-        try {
-          const projectScripts = getProjectScripts(selectedProject.path);
-          if (projectScripts.scripts.size === 0) {
-            setIsLoading(false);
-            setError(`No scripts found in ${selectedProject.name}`);
-            return;
-          }
-          
-          setIsLoading(false);
-          
-          // For now, just show error to select a script
-          const scriptList = Array.from(projectScripts.scripts.keys()).join(', ');
-          setError(`Use CLI to run scripts: prx run ${selectedProject.name} <script>\nAvailable: ${scriptList}`);
-        } catch (err) {
-          setIsLoading(false);
-          setError(err instanceof Error ? err.message : String(err));
+      try {
+        const projectScripts = getProjectScripts(selectedProject.path);
+        if (projectScripts.scripts.size === 0) {
+          setError(`No scripts found in ${selectedProject.name}`);
+          return;
         }
-      }, 100);
+        
+        setScriptModalData({
+          scripts: projectScripts.scripts,
+          projectName: selectedProject.name,
+          projectPath: selectedProject.path,
+        });
+        setShowScriptModal(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
       return;
     }
 
@@ -1314,6 +1413,20 @@ const App: React.FC = () => {
           <Text> </Text>
           <Text color={colors.textSecondary}>Press Esc or u to close...</Text>
         </Box>
+      </Box>
+    );
+  }
+
+  if (showScriptModal && scriptModalData) {
+    return (
+      <Box flexDirection="column" padding={1}>
+        <ScriptSelectionModal
+          scripts={scriptModalData.scripts}
+          projectName={scriptModalData.projectName}
+          projectPath={scriptModalData.projectPath}
+          onSelect={handleScriptSelect}
+          onClose={() => setShowScriptModal(false)}
+        />
       </Box>
     );
   }
