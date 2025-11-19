@@ -118,14 +118,36 @@ async function startAPIServer(silent: boolean = false): Promise<boolean> {
   }
   
   try {
-    spawn('node', [apiPath], {
+    const child = spawn('node', [apiPath], {
       detached: true,
-      stdio: 'ignore',
-    }).unref();
+      stdio: silent ? 'ignore' : 'inherit',
+    });
     
+    // When not silent, keep the process attached for a moment to see any immediate errors
     if (!silent) {
-      console.log('✓ API server started');
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          child.unref();
+          console.log('✓ API server started');
+          resolve(true);
+        }, 1000);
+        
+        child.on('error', (err: Error) => {
+          clearTimeout(timeout);
+          reject(err);
+        });
+        
+        child.on('exit', (code: number | null) => {
+          if (code !== 0 && code !== null) {
+            clearTimeout(timeout);
+            reject(new Error(`API server exited with code ${code}`));
+          }
+        });
+      });
+    } else {
+      child.unref();
     }
+    
     return true;
   } catch (error) {
     if (!silent) {
