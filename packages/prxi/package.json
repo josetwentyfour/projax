@@ -1,6 +1,6 @@
 {
   "name": "projax-prxi",
-  "version": "1.3.13",
+  "version": "1.3.14",
   "description": "Terminal UI for projax project dashboard",
   "main": "dist/index.js",
   "bin": {
@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "ink": "^3.2.0",
-    "react": "^17.0.2"
+    "react": "^17.0.2",
+    "react-devtools-core": "^4.28.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
