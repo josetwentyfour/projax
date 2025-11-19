@@ -1,0 +1,131 @@
+{
+  "name": "projax-vscode",
+  "displayName": "PROJAX for Editors",
+  "description": "PROJAX project management dashboard for VS Code, Cursor, and Windsurf",
+  "version": "3.0.0",
+  "publisher": "projax",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "activationEvents": [
+    "onView:projax.projects",
+    "onView:projax.details"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "projax",
+          "title": "PROJAX",
+          "icon": "$(folder)"
+        }
+      ]
+    },
+    "views": {
+      "projax": [
+        {
+          "id": "projax.projects",
+          "name": "Projects",
+          "type": "webview"
+        },
+        {
+          "id": "projax.details",
+          "name": "Project Details",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "projax.openProject",
+        "title": "Open Project",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "projax.addProject",
+        "title": "Add Project",
+        "icon": "$(add)"
+      },
+      {
+        "command": "projax.refreshProjects",
+        "title": "Refresh Projects",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "projax.scanProject",
+        "title": "Scan Project for Tests"
+      },
+      {
+        "command": "projax.scanAllProjects",
+        "title": "Scan All Projects"
+      },
+      {
+        "command": "projax.openSettings",
+        "title": "Open PROJAX Settings"
+      }
+    ],
+    "configuration": {
+      "title": "PROJAX",
+      "properties": {
+        "projax.apiPort": {
+          "type": "number",
+          "default": null,
+          "description": "Manual API port override. Leave empty to auto-detect."
+        },
+        "projax.autoDetect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically detect and highlight the current workspace project."
+        },
+        "projax.refreshInterval": {
+          "type": "number",
+          "default": 5000,
+          "description": "Process polling interval in milliseconds."
+        },
+        "projax.preferredOpenMode": {
+          "type": "string",
+          "enum": [
+            "newWindow",
+            "currentWindow",
+            "addToWorkspace",
+            "ask"
+          ],
+          "default": "ask",
+          "description": "Default behavior when opening a project."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "npm run build:extension && npm run build:webview",
+    "build:extension": "node esbuild.js",
+    "build:webview": "vite build",
+    "watch": "concurrently \"npm run watch:extension\" \"npm run watch:webview\"",
+    "watch:extension": "node esbuild.js --watch",
+    "watch:webview": "vite build --watch",
+    "clean": "rm -rf dist",
+    "package": "vsce package",
+    "vscode:prepublish": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2",
+    "esbuild": "^0.19.8",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8",
+    "@types/vscode": "^1.85.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.2"
+  }
+}
+

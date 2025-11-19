@@ -1,0 +1,7 @@
+/* Additional styles for ProjectListView if needed */
+.project-list-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
