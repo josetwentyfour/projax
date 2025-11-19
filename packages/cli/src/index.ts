@@ -1,0 +1,1174 @@
+#!/usr/bin/env node
+
+import { Command } from 'commander';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as http from 'http';
+import {
+  getDatabaseManager,
+  getAllProjects,
+  addProject,
+  removeProject,
+  scanProject,
+  scanAllProjects,
+  Project,
+} from '@projax/core';
+import { getProjectScripts, runScript, runScriptInBackground } from './script-runner';
+import { scanProjectPorts, shouldRescanPorts } from './port-scanner';
+
+// Read version from package.json
+const packageJson = require('../package.json');
+
+// Function to check API status
+async function checkAPIStatus(): Promise<{ running: boolean; port: number | null }> {
+  const dataDir = path.join(require('os').homedir(), '.projax');
+  const portFile = path.join(dataDir, 'api-port.txt');
+  
+  let port: number | null = null;
+  if (fs.existsSync(portFile)) {
+    try {
+      const portStr = fs.readFileSync(portFile, 'utf-8').trim();
+      port = parseInt(portStr, 10) || null;
+    } catch {
+      // Ignore
+    }
+  }
+  
+  if (!port) {
+    // Try common ports
+    const ports = [3001, 3002, 3003, 3004, 3005];
+    for (const p of ports) {
+      try {
+        const result = await new Promise<boolean>((resolve) => {
+          const req = http.get(`http://localhost:${p}/health`, (res) => {
+            resolve(res.statusCode === 200);
+          });
+          req.on('error', () => resolve(false));
+          req.setTimeout(500, () => {
+            req.destroy();
+            resolve(false);
+          });
+        });
+        if (result) {
+          port = p;
+          break;
+        }
+      } catch {
+        // Continue
+      }
+    }
+  }
+  
+  if (port) {
+    try {
+      const result = await new Promise<boolean>((resolve) => {
+        const req = http.get(`http://localhost:${port}/health`, (res) => {
+          resolve(res.statusCode === 200);
+        });
+        req.on('error', () => resolve(false));
+        req.setTimeout(500, () => {
+          req.destroy();
+          resolve(false);
+        });
+      });
+      return { running: result, port };
+    } catch {
+      return { running: false, port };
+    }
+  }
+  
+  return { running: false, port: null };
+}
+
+// ASCII logo for projax - using a clearer style that shows all 6 letters
+function displayLogo() {
+  return `
+  PROJAX ${packageJson.version}
+  
+  `;
+  return `
+╔═══════════════════════════════════════════════════════╗
+║                                                       ║
+║     ██████╗ ██████╗  ██████╗      ██╗  ██╗ █████╗ ██╗  ║
+║     ██╔══██╗██╔══██╗██╔═══██╗     ██║  ██║██╔══██╗╚██╗ ║
+║     ██████╔╝██████╔╝██║   ██║     ███████║╚█████╔╝ ╚██║ ║
+║     ██╔═══╝ ██╔══██╗██║   ██║██   ██╔══██║██╔══██╗ ██║ ║
+║     ██║     ██║  ██║╚██████╔╝╚█████╔╝██║╚█████╔╝ ██║ ║
+║     ╚═╝     ╚═╝  ╚═╝ ╚═════╝  ╚════╝ ╚═╝ ╚════╝  ╚═╝ ║
+║                                                       ║
+║              Version ${packageJson.version}              ║
+║                                                       ║
+║      Use "prx api" to check API server status        ║
+║                                                       ║
+╚═══════════════════════════════════════════════════════╝
+`;
+}
+
+const program = new Command();
+
+program
+  .name('prx')
+  .description('Project management dashboard CLI')
+  .version(packageJson.version)
+  .addHelpText('beforeAll', displayLogo());
+
+// Add project command
+program
+  .command('add')
+  .description('Add a project to the dashboard')
+  .argument('[path]', 'Path to the project directory')
+  .option('-n, --name <name>', 'Custom name for the project (defaults to directory name)')
+  .action(async (projectPath?: string, options?: { name?: string }) => {
+    try {
+      let finalPath = projectPath;
+      
+      if (!finalPath) {
+        const inquirer = (await import('inquirer')).default;
+        const answer = await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'path',
+            message: 'Enter the path to your project:',
+            validate: (input: string) => {
+              if (!input.trim()) {
+                return 'Path is required';
+              }
+              const resolvedPath = path.resolve(input);
+              if (!fs.existsSync(resolvedPath)) {
+                return 'Path does not exist';
+              }
+              if (!fs.statSync(resolvedPath).isDirectory()) {
+                return 'Path must be a directory';
+              }
+              return true;
+            },
+          },
+        ]);
+        finalPath = answer.path;
+      }
+      
+      const resolvedPath = path.resolve(finalPath!);
+      
+      if (!fs.existsSync(resolvedPath)) {
+        console.error(`Error: Path does not exist: ${resolvedPath}`);
+        process.exit(1);
+      }
+      
+      if (!fs.statSync(resolvedPath).isDirectory()) {
+        console.error(`Error: Path is not a directory: ${resolvedPath}`);
+        process.exit(1);
+      }
+      
+      const db = getDatabaseManager();
+      const existingProject = db.getProjectByPath(resolvedPath);
+      
+      if (existingProject) {
+        console.log(`Project already exists: ${existingProject.name} (ID: ${existingProject.id})`);
+        return;
+      }
+      
+      // Determine project name: use custom name if provided, otherwise prompt or use basename
+      let projectName: string;
+      if (options?.name) {
+        projectName = options.name.trim();
+      } else {
+        const defaultName = path.basename(resolvedPath);
+        const inquirer = (await import('inquirer')).default;
+        const nameAnswer = await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'name',
+            message: 'Enter a name for this project:',
+            default: defaultName,
+            validate: (input: string) => {
+              if (!input.trim()) {
+                return 'Project name is required';
+              }
+              return true;
+            },
+          },
+        ]);
+        projectName = nameAnswer.name.trim();
+      }
+      
+      const project = db.addProject(projectName, resolvedPath);
+      
+      console.log(`✓ Added project: ${project.name} (ID: ${project.id})`);
+      console.log(`  Path: ${project.path}`);
+      
+      // Ask if user wants to scan for tests
+      const inquirer = (await import('inquirer')).default;
+      const scanAnswer = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'scan',
+          message: 'Would you like to scan for tests now?',
+          default: true,
+        },
+      ]);
+      
+      if (scanAnswer.scan) {
+        console.log('Scanning for tests...');
+        const result = scanProject(project.id);
+        console.log(`✓ Found ${result.testsFound} test file(s)`);
+        if (result.tests.length > 0) {
+          console.log('  Test files:');
+          result.tests.forEach(test => {
+            console.log(`    - ${test.file_path}${test.framework ? ` (${test.framework})` : ''}`);
+          });
+        }
+      }
+
+      // Scan for ports in background
+      console.log('Scanning for ports...');
+      try {
+        await scanProjectPorts(project.id);
+        const ports = db.getProjectPorts(project.id);
+        if (ports.length > 0) {
+          console.log(`✓ Found ${ports.length} port(s)`);
+          const portList = ports.map(p => p.port).sort((a, b) => a - b).join(', ');
+          console.log(`  Ports: ${portList}`);
+        } else {
+          console.log('  No ports detected');
+        }
+      } catch (error) {
+        // Ignore port scanning errors
+        console.log('  Port scanning skipped');
+      }
+    } catch (error) {
+      console.error('Error adding project:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// List projects command
+program
+  .command('list')
+  .description('List all tracked projects')
+  .option('-v, --verbose', 'Show detailed information')
+  .option('--ports', 'Show detailed port information per script')
+  .action(async (options) => {
+    try {
+      const db = getDatabaseManager();
+      const projects = getAllProjects();
+      
+      if (projects.length === 0) {
+        console.log('No projects tracked yet. Use "prx add" to add a project.');
+        return;
+      }
+
+      // Check if ports need rescanning and do it in background if needed
+      for (const project of projects) {
+        if (shouldRescanPorts(project.id)) {
+          // Rescan ports asynchronously (don't wait)
+          scanProjectPorts(project.id).catch(() => {
+            // Ignore errors in background scanning
+          });
+        }
+      }
+      
+      if (options.ports) {
+        // Detailed port view
+        console.log('\nProjects with Port Information:\n');
+        for (const project of projects) {
+          const ports = db.getProjectPorts(project.id);
+          const tests = db.getTestsByProject(project.id);
+          const lastScanned = project.last_scanned
+            ? new Date(project.last_scanned * 1000).toLocaleString()
+            : 'Never';
+          
+          console.log(`${project.id}. ${project.name}`);
+          console.log(`   Path: ${project.path}`);
+          console.log(`   Tests: ${tests.length} | Last scanned: ${lastScanned}`);
+          
+          if (ports.length === 0) {
+            console.log(`   Ports: N/A`);
+          } else {
+            console.log(`   Ports:`);
+            // Group by script
+            const portsByScript = new Map<string | null, number[]>();
+            for (const port of ports) {
+              const script = port.script_name || 'general';
+              if (!portsByScript.has(script)) {
+                portsByScript.set(script, []);
+              }
+              portsByScript.get(script)!.push(port.port);
+            }
+            
+            for (const [script, portList] of portsByScript.entries()) {
+              const scriptLabel = script === 'general' ? '  (general)' : `  ${script}:`;
+              console.log(`     ${scriptLabel} ${portList.sort((a, b) => a - b).join(', ')}`);
+            }
+          }
+          console.log('');
+        }
+      } else {
+        // Table format
+        console.log(`\nTracked Projects (${projects.length}):\n`);
+        
+        // Calculate column widths
+        const idWidth = Math.max(3, projects.length.toString().length);
+        const nameWidth = Math.max(4, ...projects.map(p => p.name.length));
+        const pathWidth = Math.max(4, Math.min(40, ...projects.map(p => p.path.length)));
+        const portsWidth = 12;
+        const testsWidth = 6;
+        const scannedWidth = 20;
+        
+        // Header
+        const header = [
+          'ID'.padEnd(idWidth),
+          'Name'.padEnd(nameWidth),
+          'Path'.padEnd(pathWidth),
+          'Ports'.padEnd(portsWidth),
+          'Tests'.padEnd(testsWidth),
+          'Last Scanned'.padEnd(scannedWidth),
+        ].join(' | ');
+        console.log(header);
+        console.log('-'.repeat(header.length));
+        
+        // Rows
+        for (const project of projects) {
+          const ports = db.getProjectPorts(project.id);
+          const tests = db.getTestsByProject(project.id);
+          const lastScanned = project.last_scanned
+            ? new Date(project.last_scanned * 1000).toLocaleString()
+            : 'Never';
+          
+          const portStr = ports.length > 0
+            ? ports.map(p => p.port).sort((a, b) => a - b).join(', ')
+            : 'N/A';
+          
+          const pathDisplay = project.path.length > 40
+            ? '...' + project.path.slice(-37)
+            : project.path;
+          
+          const row = [
+            project.id.toString().padEnd(idWidth),
+            project.name.padEnd(nameWidth),
+            pathDisplay.padEnd(pathWidth),
+            portStr.padEnd(portsWidth),
+            tests.length.toString().padEnd(testsWidth),
+            lastScanned.padEnd(scannedWidth),
+          ].join(' | ');
+          console.log(row);
+        }
+        console.log('');
+      }
+    } catch (error) {
+      console.error('Error listing projects:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Scan command
+program
+  .command('scan')
+  .description('Scan projects for test files')
+  .argument('[project]', 'Project ID or name to scan (leave empty to scan all)')
+  .action(async (projectIdentifier?: string) => {
+    try {
+      const db = getDatabaseManager();
+      
+      if (projectIdentifier) {
+        // Find project by ID or name
+        const projects = getAllProjects();
+        const project = projects.find(
+          (p: Project) => p.id.toString() === projectIdentifier || p.name === projectIdentifier
+        );
+        
+        if (!project) {
+          console.error(`Error: Project not found: ${projectIdentifier}`);
+          process.exit(1);
+        }
+        
+        console.log(`Scanning project: ${project.name}...`);
+        const result = scanProject(project.id);
+        console.log(`✓ Found ${result.testsFound} test file(s)`);
+        
+        if (result.tests.length > 0) {
+          console.log('\nTest files:');
+          result.tests.forEach(test => {
+            console.log(`  - ${test.file_path}${test.framework ? ` (${test.framework})` : ''}`);
+          });
+        }
+
+        // Also scan ports
+        console.log('\nScanning for ports...');
+        try {
+          await scanProjectPorts(project.id);
+          const ports = db.getProjectPorts(project.id);
+          if (ports.length > 0) {
+            console.log(`✓ Found ${ports.length} port(s)`);
+            const portList = ports.map(p => p.port).sort((a, b) => a - b).join(', ');
+            console.log(`  Ports: ${portList}`);
+          } else {
+            console.log('  No ports detected');
+          }
+        } catch (error) {
+          console.log('  Port scanning failed');
+        }
+      } else {
+        // Scan all projects
+        console.log('Scanning all projects...\n');
+        const results = scanAllProjects();
+        
+        for (const result of results) {
+          console.log(`${result.project.name}: ${result.testsFound} test file(s)`);
+        }
+        
+        const totalTests = results.reduce((sum, r) => sum + r.testsFound, 0);
+        console.log(`\n✓ Total: ${totalTests} test file(s) found across ${results.length} project(s)`);
+
+        // Scan ports for all projects
+        console.log('\nScanning ports for all projects...');
+        try {
+          const { scanAllProjectPorts } = await import('./port-scanner');
+          await scanAllProjectPorts();
+          console.log('✓ Port scanning completed');
+        } catch (error) {
+          console.log('  Port scanning failed');
+        }
+      }
+    } catch (error) {
+      console.error('Error scanning projects:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Rename command
+program
+  .command('rn')
+  .alias('rename')
+  .description('Rename a project')
+  .argument('<project>', 'Project ID or name to rename')
+  .argument('<newName>', 'New name for the project')
+  .action((projectIdentifier: string, newName: string) => {
+    try {
+      const db = getDatabaseManager();
+      const projects = getAllProjects();
+      const project = projects.find(
+        p => p.id.toString() === projectIdentifier || p.name === projectIdentifier
+      );
+      
+      if (!project) {
+        console.error(`Error: Project not found: ${projectIdentifier}`);
+        process.exit(1);
+      }
+      
+      if (!newName || !newName.trim()) {
+        console.error('Error: New name cannot be empty');
+        process.exit(1);
+      }
+      
+      const trimmedName = newName.trim();
+      const updated = db.updateProjectName(project.id, trimmedName);
+      console.log(`✓ Renamed project from "${project.name}" to "${updated.name}"`);
+    } catch (error) {
+      console.error('Error renaming project:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Remove command
+program
+  .command('remove')
+  .description('Remove a project from the dashboard')
+  .argument('<project>', 'Project ID or name to remove')
+  .option('-f, --force', 'Skip confirmation')
+  .action(async (projectIdentifier: string, options: { force?: boolean }) => {
+    try {
+      const db = getDatabaseManager();
+      const projects = getAllProjects();
+      const project = projects.find(
+        p => p.id.toString() === projectIdentifier || p.name === projectIdentifier
+      );
+      
+      if (!project) {
+        console.error(`Error: Project not found: ${projectIdentifier}`);
+        process.exit(1);
+      }
+      
+      if (!options.force) {
+        const inquirer = (await import('inquirer')).default;
+        const answer = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'confirm',
+            message: `Are you sure you want to remove "${project.name}"?`,
+            default: false,
+          },
+        ]);
+        
+        if (!answer.confirm) {
+          console.log('Cancelled.');
+          return;
+        }
+      }
+      
+      removeProject(project.id);
+      console.log(`✓ Removed project: ${project.name}`);
+    } catch (error) {
+      console.error('Error removing project:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Scripts command - list available scripts for a project
+program
+  .command('scripts')
+  .description('List available scripts for a project')
+  .argument('[project]', 'Project ID or name (leave empty for interactive selection)')
+  .action(async (projectIdentifier?: string) => {
+    try {
+      const projects = getAllProjects();
+      
+      if (projects.length === 0) {
+        console.error('Error: No projects tracked yet. Use "prx add" to add a project.');
+        process.exit(1);
+      }
+      
+      let project: Project | undefined;
+      
+      if (projectIdentifier) {
+        project = projects.find(
+          (p: Project) => p.id.toString() === projectIdentifier || p.name === projectIdentifier
+        );
+        
+        if (!project) {
+          console.error(`Error: Project not found: ${projectIdentifier}`);
+          process.exit(1);
+        }
+      } else {
+        const inquirer = (await import('inquirer')).default;
+        const answer = await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'project',
+            message: 'Select a project:',
+            choices: projects.map((p: Project) => ({
+              name: `${p.id}. ${p.name} (${p.path})`,
+              value: p,
+            })),
+          },
+        ]);
+        project = answer.project;
+      }
+      
+      if (!project) {
+        console.error('Error: No project selected');
+        process.exit(1);
+      }
+      
+      if (!fs.existsSync(project.path)) {
+        console.error(`Error: Project path does not exist: ${project.path}`);
+        process.exit(1);
+      }
+      
+      const projectScripts = getProjectScripts(project.path);
+      
+      console.log(`\nAvailable scripts for "${project.name}":`);
+      console.log(`Project type: ${projectScripts.type}`);
+      console.log(`Path: ${project.path}\n`);
+      
+      if (projectScripts.scripts.size === 0) {
+        console.log('No scripts found in this project.');
+      } else {
+        projectScripts.scripts.forEach((script) => {
+          console.log(`  ${script.name}`);
+          console.log(`    Command: ${script.command}`);
+          console.log(`    Runner: ${script.runner}`);
+          console.log('');
+        });
+      }
+    } catch (error) {
+      console.error('Error listing scripts:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// PWD command - get the path to a project directory
+program
+  .command('pwd')
+  .description('Get the path to a project directory (use with: cd $(prx pwd <project>))')
+  .argument('[project]', 'Project ID or name (leave empty for interactive selection)')
+  .action(async (projectIdentifier?: string) => {
+    try {
+      const projects = getAllProjects();
+      
+      if (projects.length === 0) {
+        console.error('Error: No projects tracked yet. Use "prx add" to add a project.');
+        process.exit(1);
+      }
+      
+      let project: Project | undefined;
+      
+      if (projectIdentifier) {
+        // Find project by ID or name
+        project = projects.find(
+          (p: Project) => p.id.toString() === projectIdentifier || p.name === projectIdentifier
+        );
+        
+        if (!project) {
+          console.error(`Error: Project not found: ${projectIdentifier}`);
+          process.exit(1);
+        }
+      } else {
+        // Interactive selection
+        const inquirer = (await import('inquirer')).default;
+        const answer = await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'project',
+            message: 'Select a project:',
+            choices: projects.map((p: Project) => ({
+              name: `${p.id}. ${p.name} (${p.path})`,
+              value: p,
+            })),
+          },
+        ]);
+        project = answer.project;
+      }
+      
+      if (!project) {
+        console.error('Error: No project selected');
+        process.exit(1);
+      }
+      
+      // Output only the path (for use with command substitution)
+      // This allows: cd $(prx pwd <project>)
+      console.log(project.path);
+    } catch (error) {
+      console.error('Error getting project path:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// CD command - change to project directory (outputs shell command for eval)
+program
+  .command('cd')
+  .description('Change to a project directory (use with: eval $(prx cd <project>))')
+  .argument('[project]', 'Project ID or name (leave empty for interactive selection)')
+  .action(async (projectIdentifier?: string) => {
+    try {
+      const projects = getAllProjects();
+      
+      if (projects.length === 0) {
+        console.error('Error: No projects tracked yet. Use "prx add" to add a project.');
+        process.exit(1);
+      }
+      
+      let project: Project | undefined;
+      
+      if (projectIdentifier) {
+        // Find project by ID or name
+        project = projects.find(
+          (p: Project) => p.id.toString() === projectIdentifier || p.name === projectIdentifier
+        );
+        
+        if (!project) {
+          console.error(`Error: Project not found: ${projectIdentifier}`);
+          process.exit(1);
+        }
+      } else {
+        // Interactive selection
+        const inquirer = (await import('inquirer')).default;
+        const answer = await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'project',
+            message: 'Select a project:',
+            choices: projects.map((p: Project) => ({
+              name: `${p.id}. ${p.name} (${p.path})`,
+              value: p,
+            })),
+          },
+        ]);
+        project = answer.project;
+      }
+      
+      if (!project) {
+        console.error('Error: No project selected');
+        process.exit(1);
+      }
+      
+      // Output a shell command that can be evaluated to change directory
+      // This allows: eval $(prx cd <project>)
+      // Or create a shell function: prxcd() { eval $(prx cd "$@"); }
+      const escapedPath = project.path.replace(/'/g, "'\\''");
+      console.log(`cd '${escapedPath}'`);
+    } catch (error) {
+      console.error('Error changing to project directory:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Start Desktop UI command
+program
+  .command('web')
+  .description('Start the Desktop web interface')
+  .option('--dev', 'Start in development mode (with hot reload)')
+  .action(async (options) => {
+    try {
+      // Check for bundled Desktop app first (in dist/desktop when installed globally)
+      // Then check for local development (packages/cli/dist -> packages/desktop)
+      const bundledDesktopPath = path.join(__dirname, 'desktop');
+      const bundledDesktopMain = path.join(bundledDesktopPath, 'main.js');
+      const localDesktopPath = path.join(__dirname, '..', '..', 'desktop');
+      const localDesktopMain = path.join(localDesktopPath, 'dist', 'main.js');
+      
+      // Check if bundled desktop exists (global install)
+      const hasBundledDesktop = fs.existsSync(bundledDesktopMain);
+      // Check if local desktop exists (development mode)
+      const isLocalDev = fs.existsSync(localDesktopPath) && fs.existsSync(path.join(localDesktopPath, 'package.json'));
+      
+      let desktopPackagePath: string;
+      let desktopMainPath: string;
+      
+      if (hasBundledDesktop) {
+        // Bundled Desktop app (global install)
+        desktopPackagePath = bundledDesktopPath;
+        desktopMainPath = bundledDesktopMain;
+      } else if (isLocalDev) {
+        // Local development - use relative path
+        desktopPackagePath = localDesktopPath;
+        desktopMainPath = localDesktopMain;
+      } else {
+        console.error('Error: Desktop app not found.');
+        console.error('\nThe Desktop web interface is not available.');
+        console.error('This may be a packaging issue. Please report this error.');
+        process.exit(1);
+      }
+      
+      if (options.dev) {
+        // Development mode - start Vite dev server and Desktop app
+        if (!isLocalDev) {
+          console.error('Error: Development mode is only available in local development.');
+          console.error('The Desktop app must be built for production use.');
+          process.exit(1);
+        }
+        
+        console.log('Starting Desktop app in development mode...');
+        console.log('Starting Vite dev server on port 7898...');
+        
+        const { spawn } = require('child_process');
+        const electron = require('electron');
+        
+        // Start Vite dev server in background
+        const viteProcess = spawn('npm', ['run', 'dev:renderer'], {
+          cwd: desktopPackagePath,
+          stdio: 'pipe',
+          detached: false,
+        });
+        
+        viteProcess.stdout.on('data', (data: Buffer) => {
+          const output = data.toString();
+          process.stdout.write(output);
+          // Wait for Vite to be ready
+          if (output.includes('Local:') || output.includes('ready')) {
+            setTimeout(() => {
+              console.log('\nStarting Desktop window...');
+              spawn(electron, [desktopMainPath], {
+                stdio: 'inherit',
+                detached: true,
+                env: { ...process.env, NODE_ENV: 'development' },
+              }).unref();
+            }, 2000);
+          }
+        });
+        
+        viteProcess.stderr.on('data', (data: Buffer) => {
+          process.stderr.write(data);
+        });
+        
+        // Keep the process alive
+        process.on('SIGINT', () => {
+          viteProcess.kill();
+          process.exit(0);
+        });
+        
+        return;
+      }
+      
+      // Production mode - check if built
+      if (!fs.existsSync(desktopMainPath)) {
+        if (!isLocalDev) {
+          console.error('Error: Desktop app is not built.');
+          console.error('The @projax/desktop package needs to be built.');
+          console.error('Please contact the package maintainer or build it locally.');
+          process.exit(1);
+        }
+        
+        console.log('Desktop app not built.');
+        console.log('Building Desktop app...');
+        const { execSync } = require('child_process');
+        try {
+          // When in local dev, desktopPackagePath points to packages/desktop
+          // So go up two levels to get to project root
+          const projectRoot = path.join(desktopPackagePath, '..', '..');
+          execSync('npm run build:desktop', { 
+            cwd: projectRoot,
+            stdio: 'inherit' 
+          });
+        } catch (error) {
+          console.error('\nBuild failed. Try running in dev mode: prx web --dev');
+          console.error('Or manually build: npm run build:desktop');
+          process.exit(1);
+        }
+      }
+      
+      // Check if renderer is built
+      let rendererIndex: string;
+      if (hasBundledDesktop) {
+        // Bundled: renderer is in dist/desktop/renderer
+        rendererIndex = path.join(desktopPackagePath, 'renderer', 'index.html');
+      } else {
+        // Local dev: renderer is in dist/renderer
+        rendererIndex = path.join(desktopPackagePath, 'dist', 'renderer', 'index.html');
+      }
+      
+      if (!fs.existsSync(rendererIndex)) {
+        if (hasBundledDesktop) {
+          console.error('Error: Renderer files not found in bundled Desktop app.');
+          console.error('This is a packaging issue. Please report this error.');
+          process.exit(1);
+        } else {
+        console.log('Renderer not built. Starting in dev mode...');
+        process.env.NODE_ENV = 'development';
+        }
+      } else {
+        // Ensure NODE_ENV is not set to development when using bundled files
+        process.env.NODE_ENV = 'production';
+      }
+      
+      // Automatically rebuild better-sqlite3 for Desktop/Electron if needed
+      // This ensures it's compiled for Electron's Node.js version
+      if (hasBundledDesktop) {
+        try {
+          const electronPkg = require('electron/package.json');
+          let rebuild;
+          try {
+            rebuild = require('@electron/rebuild').rebuild;
+          } catch {
+            // @electron/rebuild not available, skip auto-rebuild
+          }
+          
+          if (rebuild) {
+            const sqlitePath = require.resolve('better-sqlite3');
+            // Find the package root - better-sqlite3 is in projax/node_modules/better-sqlite3
+            // Path structure: projax/node_modules/better-sqlite3/lib/index.js
+            // So we need to go: sqlitePath -> lib -> better-sqlite3 -> node_modules -> projax (package root)
+            const sqliteDir = path.dirname(sqlitePath); // .../better-sqlite3/lib
+            const betterSqlite3Dir = path.dirname(sqliteDir); // .../better-sqlite3
+            const nodeModulesDir = path.dirname(betterSqlite3Dir); // .../node_modules
+            // The package root is the directory containing node_modules (i.e., projax package root)
+            const packageRoot = path.dirname(nodeModulesDir); // .../projax
+            
+            console.log('Ensuring better-sqlite3 is built for Desktop/Electron...');
+            try {
+              await new Promise<void>((resolve, reject) => {
+                rebuild({
+                  buildPath: packageRoot,
+                  electronVersion: electronPkg.version,
+                  onlyModules: ['better-sqlite3'],
+                  force: true,
+                })
+                  .then(() => {
+                    console.log('✓ better-sqlite3 ready for Desktop/Electron');
+                    resolve();
+                  })
+                  .catch((err: any) => {
+                    // Don't fail if rebuild has issues, just warn
+                    console.warn('⚠️  Could not rebuild better-sqlite3 automatically:', err.message);
+                    console.warn('   The app may still work, but if you see errors, run:');
+                    console.warn(`   cd ${packageRoot}`);
+                    console.warn('   npm rebuild better-sqlite3 --build-from-source');
+                    resolve(); // Continue anyway
+                  });
+              });
+            } catch (rebuildError) {
+              // Continue even if rebuild fails
+              console.warn('⚠️  Rebuild check failed, continuing anyway...');
+            }
+          }
+        } catch (checkError) {
+          // If we can't check, just continue - the error will show when Desktop app tries to use it
+        }
+      }
+      
+      console.log('Starting Desktop app...');
+      const { spawn } = require('child_process');
+      const electron = require('electron');
+      
+      spawn(electron, [desktopMainPath], {
+        stdio: 'inherit',
+        detached: true,
+        env: { ...process.env },
+      }).unref();
+    } catch (error) {
+      console.error('Error starting Desktop app:', error instanceof Error ? error.message : error);
+      console.log('\nTroubleshooting:');
+      console.log('1. Try dev mode: prx web --dev');
+      console.log('2. Or build manually: npm run build:desktop');
+      console.log('3. Or run dev server: cd packages/desktop && npm run dev');
+      process.exit(1);
+    }
+  });
+
+// API command - show API info and manage API server
+program
+  .command('api')
+  .description('Show API server information and status')
+  .option('-s, --start', 'Start the API server')
+  .option('-k, --kill', 'Stop the API server')
+  .action(async (options) => {
+    try {
+      const apiStatus = await checkAPIStatus();
+      
+      if (options.start) {
+        console.log('Starting API server...');
+        // Start API server in background
+        const { spawn } = require('child_process');
+        const apiPath = path.join(__dirname, '..', '..', 'api', 'dist', 'index.js');
+        if (fs.existsSync(apiPath)) {
+          spawn('node', [apiPath], {
+            detached: true,
+            stdio: 'ignore',
+          }).unref();
+          console.log('✓ API server started');
+        } else {
+          console.error('Error: API server not found. Please build it first: npm run build --workspace=packages/api');
+          process.exit(1);
+        }
+        return;
+      }
+      
+      if (options.kill) {
+        console.log('Stopping API server...');
+        // This would require process management - for now just inform user
+        console.log('Note: API server process management not yet implemented.');
+        console.log('Please stop the API server manually if needed.');
+        return;
+      }
+      
+      // Show status
+      console.log('\nAPI Server Status:');
+      console.log(`  Running: ${apiStatus.running ? 'Yes' : 'No'}`);
+      if (apiStatus.port) {
+        console.log(`  Port: ${apiStatus.port}`);
+        console.log(`  URL: http://localhost:${apiStatus.port}`);
+        console.log(`  Health: http://localhost:${apiStatus.port}/health`);
+        console.log(`  API Base: http://localhost:${apiStatus.port}/api`);
+      } else {
+        console.log('  Port: Not detected');
+      }
+      console.log('');
+    } catch (error) {
+      console.error('Error checking API status:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Scan-ports command
+program
+  .command('scan-ports')
+  .description('Scan projects for port information')
+  .argument('[project]', 'Project ID or name to scan (leave empty to scan all)')
+  .action(async (projectIdentifier?: string) => {
+    try {
+      const { scanProjectPorts, scanAllProjectPorts } = await import('./port-scanner');
+      const db = getDatabaseManager();
+      
+      if (projectIdentifier) {
+        const projects = getAllProjects();
+        const project = projects.find(
+          (p: Project) => p.id.toString() === projectIdentifier || p.name === projectIdentifier
+        );
+        
+        if (!project) {
+          console.error(`Error: Project not found: ${projectIdentifier}`);
+          process.exit(1);
+        }
+        
+        console.log(`Scanning ports for project: ${project.name}...`);
+        await scanProjectPorts(project.id);
+        const ports = db.getProjectPorts(project.id);
+        if (ports.length > 0) {
+          console.log(`✓ Found ${ports.length} port(s)`);
+          ports.forEach(port => {
+            const scriptLabel = port.script_name ? ` (${port.script_name})` : '';
+            console.log(`  Port ${port.port}${scriptLabel} - ${port.config_source}`);
+          });
+        } else {
+          console.log('  No ports detected');
+        }
+      } else {
+        console.log('Scanning ports for all projects...\n');
+        await scanAllProjectPorts();
+        const projects = getAllProjects();
+        for (const project of projects) {
+          const ports = db.getProjectPorts(project.id);
+          if (ports.length > 0) {
+            const portList = ports.map(p => p.port).sort((a, b) => a - b).join(', ');
+            console.log(`${project.name}: ${portList}`);
+          }
+        }
+        console.log('\n✓ Port scanning completed');
+      }
+    } catch (error) {
+      console.error('Error scanning ports:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Handle script execution before parsing
+// Check if first argument is not a known command
+(async () => {
+  const args = process.argv.slice(2);
+  const knownCommands = ['add', 'list', 'scan', 'remove', 'rn', 'rename', 'cd', 'pwd', 'web', 'scripts', 'scan-ports', 'api', '--help', '-h', '--version', '-V'];
+
+  // If we have at least 1 argument and first is not a known command, treat as project identifier
+  if (args.length >= 1 && !knownCommands.includes(args[0])) {
+    const projectIdentifier = args[0];
+    
+    // Check if it's actually a project (not a flag)
+    if (!projectIdentifier.startsWith('-')) {
+      try {
+        const projects = getAllProjects();
+        
+        // Try to find project by ID (if identifier is numeric) or by name
+        let project: Project | undefined;
+        const numericId = parseInt(projectIdentifier, 10);
+        if (!isNaN(numericId)) {
+          // Try to find by numeric ID first
+          project = projects.find((p: Project) => p.id === numericId);
+        }
+        
+        // If not found by ID, try by name
+        if (!project) {
+          project = projects.find((p: Project) => p.name === projectIdentifier);
+        }
+
+        if (project) {
+          // Found a project
+          if (!fs.existsSync(project.path)) {
+            console.error(`Error: Project path does not exist: ${project.path}`);
+            process.exit(1);
+          }
+
+          const projectScripts = getProjectScripts(project.path);
+
+          if (projectScripts.scripts.size === 0) {
+            console.error(`Error: No scripts found in project "${project.name}"`);
+            console.error(`Project type: ${projectScripts.type}`);
+            console.error(`Path: ${project.path}`);
+            process.exit(1);
+          }
+
+          // Check for background mode flags (-M, --background, -b, --daemon)
+          const backgroundFlags = ['-M', '--background', '-b', '--daemon'];
+          const isBackgroundMode = args.some(arg => backgroundFlags.includes(arg));
+          
+          // Check for force flags (--force, -F)
+          const forceFlags = ['--force', '-F'];
+          const isForceMode = args.some(arg => forceFlags.includes(arg));
+          
+          // Filter out background and force flags from args
+          const filteredArgs = args.filter(arg => !backgroundFlags.includes(arg) && !forceFlags.includes(arg));
+
+          // If script name is provided (filteredArgs.length >= 2), run that script
+          if (filteredArgs.length >= 2) {
+            const scriptName = filteredArgs[1];
+            const scriptArgs = filteredArgs.slice(2);
+            
+            // Check if script exists
+            if (!projectScripts.scripts.has(scriptName)) {
+              console.error(`Error: Script "${scriptName}" not found in project "${project.name}"`);
+              console.error(`\nAvailable scripts:`);
+              projectScripts.scripts.forEach((script) => {
+                console.error(`  ${script.name}`);
+              });
+              process.exit(1);
+            }
+
+            // Run the script (in background or foreground)
+            try {
+              if (isBackgroundMode) {
+                await runScriptInBackground(project.path, project.name, scriptName, scriptArgs, isForceMode);
+              } else {
+                await runScript(project.path, scriptName, scriptArgs, isForceMode);
+              }
+              process.exit(0);
+            } catch (error) {
+              console.error('Error running script:', error instanceof Error ? error.message : error);
+              process.exit(1);
+            }
+          } else {
+            // No script name provided - intelligent script selection
+            const hasStart = projectScripts.scripts.has('start');
+            const hasDev = projectScripts.scripts.has('dev');
+            let selectedScript: string | undefined;
+
+            // Rule 1: If "start" exists but "dev" doesn't, run "start"
+            if (hasStart && !hasDev) {
+              selectedScript = 'start';
+            }
+            // Rule 2: If "dev" exists but "start" doesn't, run "dev"
+            else if (hasDev && !hasStart) {
+              selectedScript = 'dev';
+            }
+            // Rule 3: If neither case applies, show interactive selection
+            else {
+              const inquirer = (await import('inquirer')).default;
+              const scriptChoices = Array.from(projectScripts.scripts.values()).map((script) => ({
+                name: `${script.name} - ${script.command}`,
+                value: script.name,
+              }));
+
+              const answer = await inquirer.prompt([
+                {
+                  type: 'list',
+                  name: 'script',
+                  message: `Select a script to run for "${project.name}":`,
+                  choices: scriptChoices,
+                },
+              ]);
+              selectedScript = answer.script;
+            }
+
+            if (selectedScript) {
+              try {
+                if (isBackgroundMode) {
+                  await runScriptInBackground(project.path, project.name, selectedScript, [], isForceMode);
+                } else {
+                  await runScript(project.path, selectedScript, [], isForceMode);
+                }
+                process.exit(0);
+              } catch (error) {
+                console.error('Error running script:', error instanceof Error ? error.message : error);
+                process.exit(1);
+              }
+            } else {
+              console.error('Error: No script selected');
+              process.exit(1);
+            }
+          }
+        } else {
+          // Project not found - show helpful error
+          console.error(`Error: Project not found: ${projectIdentifier}`);
+          console.error(`\nAvailable projects:`);
+          projects.forEach((p: Project) => {
+            console.error(`  ${p.id}. ${p.name}`);
+          });
+          process.exit(1);
+        }
+      } catch (error) {
+        // If there's an error, fall through to normal command parsing
+      }
+    }
+  }
+
+  // If we get here, proceed with normal command parsing
+  // Don't show logo twice - it's already in addHelpText
+  program.parse();
+})();
+

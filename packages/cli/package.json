@@ -1,0 +1,41 @@
+{
+  "name": "projax",
+  "version": "1.3.0",
+  "description": "CLI tool for managing local development projects",
+  "main": "dist/index.js",
+  "bin": {
+    "prx": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:electron": "cd ../electron && npm run build",
+    "copy:electron": "mkdir -p dist/electron && cp -r ../electron/dist/* dist/electron/ && cp dist/script-runner.* dist/electron/ && cp dist/port-*.* dist/electron/",
+    "copy:api": "mkdir -p dist/api && cp -r ../api/dist/* dist/api/ && cp ../api/package.json dist/api/",
+    "copy:core": "mkdir -p dist/core && cp -r ../core/dist/* dist/core/",
+    "build:all": "npm run build && npm run copy:core && npm run build:electron && npm run copy:electron && npm run copy:api",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build:all"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "electron": "^28.0.0",
+    "inquirer": "^9.2.12",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "better-sqlite3": "^11.10.0",
+    "@electron/rebuild": "^3.6.0"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.7",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  },
+  "keywords": [
+    "project-management",
+    "dashboard",
+    "cli",
+    "developer-tools"
+  ],
+  "author": "",
+  "license": "MIT"
+}

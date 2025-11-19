@@ -1,0 +1,16 @@
+{
+  "name": "projax-core",
+  "version": "1.3.0",
+  "description": "Core shared library for project dashboard (internal use)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  }
+}

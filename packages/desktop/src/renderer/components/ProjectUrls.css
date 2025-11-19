@@ -1,0 +1,45 @@
+.project-urls-section {
+  background: var(--bg-secondary);
+  padding: 1.25rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  margin-bottom: 1.5rem;
+}
+
+.urls-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.url-item {
+  padding: 0.875rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.url-item:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+.url-text {
+  font-family: 'SF Mono', 'Monaco', monospace;
+  font-size: 12px;
+  color: var(--accent-cyan);
+  flex: 1;
+  word-break: break-all;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.url-text:hover {
+  color: var(--accent-blue);
+}
+

@@ -1,0 +1,93 @@
+import { contextBridge, ipcRenderer } from 'electron';
+// Import types from core (types are compile-time only)
+import type { Project, Test } from '@projax/core';
+
+export interface ProjectScript {
+  name: string;
+  command: string;
+  runner: string;
+  projectType: string;
+}
+
+export interface ProjectScripts {
+  type: string;
+  scripts: ProjectScript[];
+}
+
+export interface ProjectPort {
+  id: number;
+  project_id: number;
+  port: number;
+  script_name: string | null;
+  config_source: string;
+  last_detected: number;
+  created_at: number;
+}
+
+export interface ElectronAPI {
+  getProjects: () => Promise<Project[]>;
+  addProject: (path: string) => Promise<Project>;
+  removeProject: (projectId: number) => Promise<void>;
+  scanProject: (projectId: number) => Promise<{ project: Project; testsFound: number; tests: Test[] }>;
+  scanAllProjects: () => Promise<Array<{ project: Project; testsFound: number; tests: Test[] }>>;
+  getTests: (projectId: number) => Promise<Test[]>;
+  selectDirectory: () => Promise<string | null>;
+  minimizeWindow: () => Promise<void>;
+  maximizeWindow: () => Promise<void>;
+  closeWindow: () => Promise<void>;
+  renameProject: (projectId: number, newName: string) => Promise<Project>;
+  getProjectScripts: (projectPath: string) => Promise<ProjectScripts>;
+  runScript: (projectPath: string, scriptName: string, args?: string[], background?: boolean) => Promise<{ success: boolean; background: boolean }>;
+  scanProjectPorts: (projectId: number) => Promise<ProjectPort[]>;
+  scanAllPorts: () => Promise<Record<number, ProjectPort[]>>;
+  getProjectPorts: (projectId: number) => Promise<ProjectPort[]>;
+  getRunningProcesses: () => Promise<Array<{
+    pid: number;
+    projectPath: string;
+    projectName: string;
+    scriptName: string;
+    command: string;
+    startedAt: number;
+    logFile: string;
+    detectedUrls?: string[];
+  }>>;
+  stopScript: (pid: number) => Promise<boolean>;
+  stopProject: (projectPath: string) => Promise<number>;
+  openUrl: (url: string) => Promise<void>;
+  openInEditor: (projectPath: string) => Promise<void>;
+  getSettings: () => Promise<{
+    editor: { type: string; customPath?: string };
+    browser: { type: string; customPath?: string };
+  }>;
+  saveSettings: (settings: {
+    editor: { type: string; customPath?: string };
+    browser: { type: string; customPath?: string };
+  }) => Promise<void>;
+}
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  getProjects: () => ipcRenderer.invoke('get-projects'),
+  addProject: (path: string) => ipcRenderer.invoke('add-project', path),
+  removeProject: (projectId: number) => ipcRenderer.invoke('remove-project', projectId),
+  scanProject: (projectId: number) => ipcRenderer.invoke('scan-project', projectId),
+  scanAllProjects: () => ipcRenderer.invoke('scan-all-projects'),
+  getTests: (projectId: number) => ipcRenderer.invoke('get-tests', projectId),
+  selectDirectory: () => ipcRenderer.invoke('select-directory'),
+  minimizeWindow: () => ipcRenderer.invoke('minimize-window'),
+  maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
+  closeWindow: () => ipcRenderer.invoke('close-window'),
+  renameProject: (projectId: number, newName: string) => ipcRenderer.invoke('rename-project', projectId, newName),
+  getProjectScripts: (projectPath: string) => ipcRenderer.invoke('get-project-scripts', projectPath),
+  runScript: (projectPath: string, scriptName: string, args?: string[], background?: boolean) => ipcRenderer.invoke('run-script', projectPath, scriptName, args, background),
+  scanProjectPorts: (projectId: number) => ipcRenderer.invoke('scan-project-ports', projectId),
+  scanAllPorts: () => ipcRenderer.invoke('scan-all-ports'),
+  getProjectPorts: (projectId: number) => ipcRenderer.invoke('get-project-ports', projectId),
+  getRunningProcesses: () => ipcRenderer.invoke('get-running-processes'),
+  stopScript: (pid: number) => ipcRenderer.invoke('stop-script', pid),
+  stopProject: (projectPath: string) => ipcRenderer.invoke('stop-project', projectPath),
+  openUrl: (url: string) => ipcRenderer.invoke('open-url', url),
+  openInEditor: (projectPath: string) => ipcRenderer.invoke('open-in-editor', projectPath),
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
+} as ElectronAPI);
+

@@ -1,0 +1,889 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import { spawn } from 'child_process';
+import { getDatabaseManager } from '@projax/core';
+import { detectPortInUse, getProcessOnPort, killProcessOnPort, extractPortFromError } from './port-utils';
+
+export interface ScriptInfo {
+  name: string;
+  command: string;
+  runner: string;
+  projectType: string;
+}
+
+export type ProjectType = 'node' | 'python' | 'rust' | 'go' | 'makefile' | 'unknown';
+
+export interface ProjectScripts {
+  type: ProjectType;
+  scripts: Map<string, ScriptInfo>;
+}
+
+/**
+ * Detect the project type based on files in the directory
+ */
+export function detectProjectType(projectPath: string): ProjectType {
+  if (fs.existsSync(path.join(projectPath, 'package.json'))) {
+    return 'node';
+  }
+  if (fs.existsSync(path.join(projectPath, 'pyproject.toml'))) {
+    return 'python';
+  }
+  if (fs.existsSync(path.join(projectPath, 'Cargo.toml'))) {
+    return 'rust';
+  }
+  if (fs.existsSync(path.join(projectPath, 'go.mod'))) {
+    return 'go';
+  }
+  if (fs.existsSync(path.join(projectPath, 'Makefile')) || fs.existsSync(path.join(projectPath, 'makefile'))) {
+    return 'makefile';
+  }
+  return 'unknown';
+}
+
+/**
+ * Parse scripts from package.json (Node.js)
+ */
+function parseNodeScripts(projectPath: string): Map<string, ScriptInfo> {
+  const packageJsonPath = path.join(projectPath, 'package.json');
+  if (!fs.existsSync(packageJsonPath)) {
+    return new Map();
+  }
+
+  try {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+    const scripts = packageJson.scripts || {};
+    const scriptMap = new Map<string, ScriptInfo>();
+
+    for (const [name, command] of Object.entries(scripts)) {
+      if (typeof command === 'string') {
+        scriptMap.set(name, {
+          name,
+          command: command as string,
+          runner: 'npm',
+          projectType: 'node',
+        });
+      }
+    }
+
+    return scriptMap;
+  } catch (error) {
+    return new Map();
+  }
+}
+
+/**
+ * Parse scripts from pyproject.toml (Python)
+ */
+function parsePythonScripts(projectPath: string): Map<string, ScriptInfo> {
+  const pyprojectPath = path.join(projectPath, 'pyproject.toml');
+  if (!fs.existsSync(pyprojectPath)) {
+    return new Map();
+  }
+
+  try {
+    const content = fs.readFileSync(pyprojectPath, 'utf-8');
+    const scriptMap = new Map<string, ScriptInfo>();
+
+    // Simple TOML parsing for [project.scripts] section
+    // This is a basic implementation - for production, consider using a TOML parser
+    const scriptsMatch = content.match(/\[project\.scripts\]\s*\n((?:[^\[]+\n?)+)/);
+    if (scriptsMatch) {
+      const scriptsSection = scriptsMatch[1];
+      const scriptLines = scriptsSection.split('\n');
+      
+      for (const line of scriptLines) {
+        const match = line.match(/^(\w+)\s*=\s*["']([^"']+)["']/);
+        if (match) {
+          const [, name, command] = match;
+          scriptMap.set(name, {
+            name,
+            command,
+            runner: 'python',
+            projectType: 'python',
+          });
+        }
+      }
+    }
+
+    // Also check for [tool.poetry.scripts]
+    const poetryMatch = content.match(/\[tool\.poetry\.scripts\]\s*\n((?:[^\[]+\n?)+)/);
+    if (poetryMatch) {
+      const scriptsSection = poetryMatch[1];
+      const scriptLines = scriptsSection.split('\n');
+      
+      for (const line of scriptLines) {
+        const match = line.match(/^(\w+)\s*=\s*["']([^"']+)["']/);
+        if (match) {
+          const [, name, command] = match;
+          scriptMap.set(name, {
+            name,
+            command,
+            runner: 'poetry',
+            projectType: 'python',
+          });
+        }
+      }
+    }
+
+    return scriptMap;
+  } catch (error) {
+    return new Map();
+  }
+}
+
+/**
+ * Parse scripts from Cargo.toml (Rust)
+ * Cargo doesn't have a scripts section, but we can detect common cargo commands
+ */
+function parseRustScripts(projectPath: string): Map<string, ScriptInfo> {
+  const scriptMap = new Map<string, ScriptInfo>();
+  
+  // Common cargo commands that can be run
+  const commonCommands = [
+    { name: 'build', command: 'cargo build', runner: 'cargo' },
+    { name: 'run', command: 'cargo run', runner: 'cargo' },
+    { name: 'test', command: 'cargo test', runner: 'cargo' },
+    { name: 'check', command: 'cargo check', runner: 'cargo' },
+    { name: 'clippy', command: 'cargo clippy', runner: 'cargo' },
+    { name: 'fmt', command: 'cargo fmt', runner: 'cargo' },
+  ];
+
+  for (const cmd of commonCommands) {
+    scriptMap.set(cmd.name, {
+      name: cmd.name,
+      command: cmd.command,
+      runner: cmd.runner,
+      projectType: 'rust',
+    });
+  }
+
+  return scriptMap;
+}
+
+/**
+ * Parse Makefile targets
+ */
+function parseMakefileScripts(projectPath: string): Map<string, ScriptInfo> {
+  const makefilePath = fs.existsSync(path.join(projectPath, 'Makefile'))
+    ? path.join(projectPath, 'Makefile')
+    : path.join(projectPath, 'makefile');
+  
+  if (!fs.existsSync(makefilePath)) {
+    return new Map();
+  }
+
+  try {
+    const content = fs.readFileSync(makefilePath, 'utf-8');
+    const scriptMap = new Map<string, ScriptInfo>();
+
+    // Parse Makefile targets (basic implementation)
+    // Match lines that look like targets: target: dependencies
+    const targetRegex = /^([a-zA-Z0-9_-]+)\s*:.*$/gm;
+    let match;
+    
+    while ((match = targetRegex.exec(content)) !== null) {
+      const targetName = match[1];
+      // Skip special targets
+      if (!targetName.startsWith('.') && targetName !== 'PHONY') {
+        scriptMap.set(targetName, {
+          name: targetName,
+          command: `make ${targetName}`,
+          runner: 'make',
+          projectType: 'makefile',
+        });
+      }
+    }
+
+    return scriptMap;
+  } catch (error) {
+    return new Map();
+  }
+}
+
+/**
+ * Get all available scripts for a project
+ */
+export function getProjectScripts(projectPath: string): ProjectScripts {
+  const type = detectProjectType(projectPath);
+  let scripts = new Map<string, ScriptInfo>();
+
+  switch (type) {
+    case 'node':
+      scripts = parseNodeScripts(projectPath);
+      break;
+    case 'python':
+      scripts = parsePythonScripts(projectPath);
+      break;
+    case 'rust':
+      scripts = parseRustScripts(projectPath);
+      break;
+    case 'makefile':
+      scripts = parseMakefileScripts(projectPath);
+      break;
+    case 'go':
+      // Go projects typically use Makefile or direct go commands
+      // Check for Makefile first, otherwise provide common go commands
+      const makefileScripts = parseMakefileScripts(projectPath);
+      if (makefileScripts.size > 0) {
+        scripts = makefileScripts;
+      } else {
+        // Common go commands
+        scripts.set('run', {
+          name: 'run',
+          command: 'go run .',
+          runner: 'go',
+          projectType: 'go',
+        });
+        scripts.set('build', {
+          name: 'build',
+          command: 'go build',
+          runner: 'go',
+          projectType: 'go',
+        });
+        scripts.set('test', {
+          name: 'test',
+          command: 'go test ./...',
+          runner: 'go',
+          projectType: 'go',
+        });
+      }
+      break;
+    default:
+      // For unknown projects, check for Makefile as fallback
+      scripts = parseMakefileScripts(projectPath);
+      break;
+  }
+
+  return {
+    type,
+    scripts,
+  };
+}
+
+/**
+ * Handle port conflict - prompt user or auto-kill based on force flag
+ */
+async function handlePortConflict(
+  port: number,
+  projectName: string,
+  force: boolean
+): Promise<boolean> {
+  const processInfo = await getProcessOnPort(port);
+
+  if (!processInfo) {
+    console.error(`Port ${port} appears to be in use, but couldn't identify the process.`);
+    return false;
+  }
+
+  console.error(`\n⚠️  Port ${port} is already in use by process ${processInfo.pid} (${processInfo.command})`);
+
+  if (force) {
+    console.log(`Killing process ${processInfo.pid} on port ${port}...`);
+    const killed = await killProcessOnPort(port);
+    if (killed) {
+      console.log(`✓ Process killed. Retrying...\n`);
+      return true;
+    } else {
+      console.error(`Failed to kill process on port ${port}`);
+      return false;
+    }
+  } else {
+    const inquirer = (await import('inquirer')).default;
+    const answer = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'kill',
+        message: `Kill process ${processInfo.pid} (${processInfo.command}) and continue?`,
+        default: false,
+      },
+    ]);
+
+    if (answer.kill) {
+      const killed = await killProcessOnPort(port);
+      if (killed) {
+        console.log(`✓ Process killed. Retrying...\n`);
+        return true;
+      } else {
+        console.error(`Failed to kill process on port ${port}`);
+        return false;
+      }
+    } else {
+      console.log('Cancelled.');
+      return false;
+    }
+  }
+}
+
+/**
+ * Check ports proactively before script execution
+ */
+async function checkPortsBeforeExecution(
+  projectPath: string,
+  scriptName: string,
+  force: boolean
+): Promise<boolean> {
+  const db = getDatabaseManager();
+  const project = db.getProjectByPath(projectPath);
+  if (!project) return true; // Can't check if project not in DB
+
+  const ports = db.getProjectPortsByScript(project.id, scriptName);
+  if (ports.length === 0) {
+    // Also check ports without script name (general project ports)
+    const allPorts = db.getProjectPorts(project.id);
+    for (const portInfo of allPorts) {
+      const inUse = await detectPortInUse(portInfo.port);
+      if (inUse) {
+        return await handlePortConflict(portInfo.port, project.name, force);
+      }
+    }
+    return true;
+  }
+
+  for (const portInfo of ports) {
+    const inUse = await detectPortInUse(portInfo.port);
+    if (inUse) {
+      return await handlePortConflict(portInfo.port, project.name, force);
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Execute a script in a project directory
+ */
+export function runScript(
+  projectPath: string,
+  scriptName: string,
+  args: string[] = [],
+  force: boolean = false
+): Promise<number> {
+  return new Promise(async (resolve, reject) => {
+    const projectScripts = getProjectScripts(projectPath);
+    const script = projectScripts.scripts.get(scriptName);
+
+    if (!script) {
+      reject(new Error(`Script "${scriptName}" not found in project`));
+      return;
+    }
+
+    // Proactive port checking
+    const canProceed = await checkPortsBeforeExecution(projectPath, scriptName, force);
+    if (!canProceed) {
+      reject(new Error('Port conflict not resolved'));
+      return;
+    }
+
+    let command: string;
+    let commandArgs: string[];
+
+    switch (script.runner) {
+      case 'npm':
+        command = 'npm';
+        commandArgs = ['run', scriptName, ...args];
+        break;
+      case 'yarn':
+        command = 'yarn';
+        commandArgs = [scriptName, ...args];
+        break;
+      case 'pnpm':
+        command = 'pnpm';
+        commandArgs = ['run', scriptName, ...args];
+        break;
+      case 'python':
+        command = 'python';
+        commandArgs = ['-m', ...script.command.split(' ').slice(1), ...args];
+        break;
+      case 'poetry':
+        command = 'poetry';
+        // For poetry, the command is already the module path, use 'run' to execute it
+        const modulePath = script.command.split(' ').slice(1).join(' ');
+        commandArgs = ['run', 'python', '-m', modulePath, ...args];
+        break;
+      case 'cargo':
+        command = 'cargo';
+        commandArgs = scriptName === 'run' ? ['run', ...args] : [scriptName, ...args];
+        break;
+      case 'go':
+        command = 'go';
+        commandArgs = script.command.split(' ').slice(1);
+        if (scriptName === 'run' && args.length > 0) {
+          commandArgs = ['run', ...args];
+        } else {
+          commandArgs = [...commandArgs, ...args];
+        }
+        break;
+      case 'make':
+        command = 'make';
+        commandArgs = [scriptName, ...args];
+        break;
+      default:
+        // Fallback: try to run the command directly
+        const parts = script.command.split(' ');
+        command = parts[0];
+        commandArgs = [...parts.slice(1), ...args];
+        break;
+    }
+
+    console.log(`Running: ${command} ${commandArgs.join(' ')}`);
+    console.log(`In directory: ${projectPath}\n`);
+
+    // Capture stderr for reactive port conflict detection
+    let stderrOutput = '';
+    let stdoutOutput = '';
+
+    const child = spawn(command, commandArgs, {
+      cwd: projectPath,
+      stdio: ['inherit', 'pipe', 'pipe'],
+      shell: process.platform === 'win32',
+    });
+
+    // Capture output for error analysis
+    if (child.stdout) {
+      child.stdout.on('data', (data: Buffer) => {
+        stdoutOutput += data.toString();
+        process.stdout.write(data);
+      });
+    }
+
+    if (child.stderr) {
+      child.stderr.on('data', (data: Buffer) => {
+        stderrOutput += data.toString();
+        process.stderr.write(data);
+      });
+    }
+
+    child.on('close', async (code) => {
+      if (code === 0) {
+        resolve(0);
+      } else {
+        // Reactive port conflict detection
+        const errorOutput = stderrOutput + stdoutOutput;
+        const port = extractPortFromError(errorOutput);
+        
+        if (port) {
+          const db = getDatabaseManager();
+          const project = db.getProjectByPath(projectPath);
+          const projectName = project?.name || 'project';
+          
+          const resolved = await handlePortConflict(port, projectName, force);
+          if (resolved) {
+            // Retry script execution
+            try {
+              const retryResult = await runScript(projectPath, scriptName, args, force);
+              resolve(retryResult);
+            } catch (retryError) {
+              reject(retryError);
+            }
+          } else {
+            reject(new Error(`Script exited with code ${code} (port ${port} conflict)`));
+          }
+        } else {
+          reject(new Error(`Script exited with code ${code}`));
+        }
+      }
+    });
+
+    child.on('error', (error) => {
+      reject(new Error(`Failed to execute script: ${error.message}`));
+    });
+  });
+}
+
+export interface BackgroundProcess {
+  pid: number;
+  projectPath: string;
+  projectName: string;
+  scriptName: string;
+  command: string;
+  startedAt: number;
+  logFile: string;
+  detectedUrls?: string[];
+}
+
+/**
+ * Get the path to the processes file
+ */
+function getProcessesFilePath(): string {
+  const dataDir = path.join(os.homedir(), '.projax');
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+  return path.join(dataDir, 'processes.json');
+}
+
+/**
+ * Load running processes from disk
+ */
+export function loadProcesses(): BackgroundProcess[] {
+  const filePath = getProcessesFilePath();
+  if (!fs.existsSync(filePath)) {
+    return [];
+  }
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return JSON.parse(content);
+  } catch (error) {
+    return [];
+  }
+}
+
+/**
+ * Save running processes to disk
+ */
+function saveProcesses(processes: BackgroundProcess[]): void {
+  const filePath = getProcessesFilePath();
+  fs.writeFileSync(filePath, JSON.stringify(processes, null, 2));
+}
+
+/**
+ * Add a process to the tracking file
+ */
+function addProcess(process: BackgroundProcess): void {
+  const processes = loadProcesses();
+  processes.push(process);
+  saveProcesses(processes);
+}
+
+/**
+ * Remove a process from tracking by PID
+ */
+export function removeProcess(pid: number): void {
+  const processes = loadProcesses();
+  const filtered = processes.filter(p => p.pid !== pid);
+  saveProcesses(filtered);
+}
+
+/**
+ * Get all running processes for a project
+ */
+export function getProjectProcesses(projectPath: string): BackgroundProcess[] {
+  const processes = loadProcesses();
+  return processes.filter(p => p.projectPath === projectPath);
+}
+
+/**
+ * Get all running processes
+ */
+export function getRunningProcesses(): BackgroundProcess[] {
+  return loadProcesses();
+}
+
+/**
+ * Extract URLs from text output
+ */
+function extractUrlsFromOutput(output: string): string[] {
+  const urls: string[] = [];
+  const urlPatterns = [
+    /(?:Local|Network):\s*(https?:\/\/[^\s]+)/gi,
+    /(?:https?:\/\/localhost:\d+)/gi,
+    /(?:https?:\/\/127\.0\.0\.1:\d+)/gi,
+    /(?:https?:\/\/0\.0\.0\.0:\d+)/gi,
+    /(?:https?:\/\/[^\s:]+:\d+)/gi,
+  ];
+
+  for (const pattern of urlPatterns) {
+    const matches = output.matchAll(pattern);
+    for (const match of matches) {
+      const url = match[0] || match[1];
+      if (url && !urls.includes(url)) {
+        urls.push(url);
+      }
+    }
+  }
+
+  return urls;
+}
+
+/**
+ * Update process with detected URLs
+ */
+function updateProcessUrls(pid: number, urls: string[]): void {
+  const processes = loadProcesses();
+  const process = processes.find(p => p.pid === pid);
+  if (process) {
+    process.detectedUrls = urls;
+    saveProcesses(processes);
+  }
+}
+
+/**
+ * Stop a script by PID
+ */
+export async function stopScript(pid: number): Promise<boolean> {
+  try {
+    const processes = loadProcesses();
+    const processInfo = processes.find(p => p.pid === pid);
+    
+    if (!processInfo) {
+      return false;
+    }
+
+    // Check if process is still running before trying to kill it
+    let processExists = false;
+    try {
+      if (os.platform() === 'win32') {
+        const { exec } = require('child_process');
+        const { promisify } = require('util');
+        const execAsync = promisify(exec);
+        await execAsync(`tasklist /FI "PID eq ${pid}" /FO CSV /NH`);
+        processExists = true;
+      } else {
+        const { exec } = require('child_process');
+        const { promisify } = require('util');
+        const execAsync = promisify(exec);
+        await execAsync(`ps -p ${pid} -o pid=`);
+        processExists = true;
+      }
+    } catch {
+      // Process doesn't exist anymore
+      processExists = false;
+    }
+
+    // Try to kill the process (cross-platform)
+    if (processExists) {
+      try {
+        if (os.platform() === 'win32') {
+          const { exec } = require('child_process');
+          const { promisify } = require('util');
+          const execAsync = promisify(exec);
+          await execAsync(`taskkill /F /PID ${pid}`);
+        } else {
+          const { exec } = require('child_process');
+          const { promisify } = require('util');
+          const execAsync = promisify(exec);
+          await execAsync(`kill -9 ${pid}`);
+        }
+      } catch (error) {
+        // Process may have already exited
+        console.error(`Error killing process ${pid}:`, error);
+      }
+    }
+
+    // Remove from tracking regardless of whether kill succeeded
+    removeProcess(pid);
+    return true;
+  } catch (error) {
+    console.error(`Error stopping script ${pid}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Stop a script by port (finds process using port and kills it)
+ */
+export async function stopScriptByPort(port: number): Promise<boolean> {
+  try {
+    const processInfo = await getProcessOnPort(port);
+    if (!processInfo) {
+      return false;
+    }
+
+    // Check if this is a tracked process
+    const processes = loadProcesses();
+    const trackedProcess = processes.find(p => p.pid === processInfo.pid);
+    
+    if (trackedProcess) {
+      // Use the tracked process removal
+      return await stopScript(processInfo.pid);
+    } else {
+      // Kill the process directly
+      const killed = await killProcessOnPort(port);
+      return killed;
+    }
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Stop all processes for a project
+ */
+export async function stopProjectProcesses(projectPath: string): Promise<number> {
+  const processes = getProjectProcesses(projectPath);
+  let stopped = 0;
+  
+  for (const process of processes) {
+    if (await stopScript(process.pid)) {
+      stopped++;
+    }
+  }
+  
+  return stopped;
+}
+
+/**
+ * Execute a script in the background (minimal logging)
+ */
+export function runScriptInBackground(
+  projectPath: string,
+  projectName: string,
+  scriptName: string,
+  args: string[] = [],
+  force: boolean = false
+): Promise<number> {
+  return new Promise(async (resolve, reject) => {
+    const projectScripts = getProjectScripts(projectPath);
+    const script = projectScripts.scripts.get(scriptName);
+
+    if (!script) {
+      reject(new Error(`Script "${scriptName}" not found in project`));
+      return;
+    }
+
+    // Proactive port checking
+    const canProceed = await checkPortsBeforeExecution(projectPath, scriptName, force);
+    if (!canProceed) {
+      reject(new Error('Port conflict not resolved'));
+      return;
+    }
+
+    let command: string;
+    let commandArgs: string[];
+
+    switch (script.runner) {
+      case 'npm':
+        command = 'npm';
+        commandArgs = ['run', scriptName, ...args];
+        break;
+      case 'yarn':
+        command = 'yarn';
+        commandArgs = [scriptName, ...args];
+        break;
+      case 'pnpm':
+        command = 'pnpm';
+        commandArgs = ['run', scriptName, ...args];
+        break;
+      case 'python':
+        command = 'python';
+        commandArgs = ['-m', ...script.command.split(' ').slice(1), ...args];
+        break;
+      case 'poetry':
+        command = 'poetry';
+        const modulePath = script.command.split(' ').slice(1).join(' ');
+        commandArgs = ['run', 'python', '-m', modulePath, ...args];
+        break;
+      case 'cargo':
+        command = 'cargo';
+        commandArgs = scriptName === 'run' ? ['run', ...args] : [scriptName, ...args];
+        break;
+      case 'go':
+        command = 'go';
+        commandArgs = script.command.split(' ').slice(1);
+        if (scriptName === 'run' && args.length > 0) {
+          commandArgs = ['run', ...args];
+        } else {
+          commandArgs = [...commandArgs, ...args];
+        }
+        break;
+      case 'make':
+        command = 'make';
+        commandArgs = [scriptName, ...args];
+        break;
+      default:
+        const parts = script.command.split(' ');
+        command = parts[0];
+        commandArgs = [...parts.slice(1), ...args];
+        break;
+    }
+
+    // Create log file for the process
+    const dataDir = path.join(os.homedir(), '.projax');
+    const logsDir = path.join(dataDir, 'logs');
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true });
+    }
+    const logFile = path.join(logsDir, `process-${Date.now()}-${scriptName}.log`);
+
+    // Create write stream for log file (keep reference to prevent GC)
+    const logStream = fs.createWriteStream(logFile, { flags: 'a' });
+    
+    // Spawn process in detached mode with output redirected to log file
+    const child = spawn(command, commandArgs, {
+      cwd: projectPath,
+      stdio: ['ignore', logStream, logStream], // Redirect stdout and stderr to log file
+      detached: true,
+      shell: process.platform === 'win32',
+    });
+    
+    // Don't close the stream - let it stay open for the child process
+    // The stream will be closed when the child process exits
+
+    // Store process info
+    const processInfo: BackgroundProcess = {
+      pid: child.pid!,
+      projectPath,
+      projectName,
+      scriptName,
+      command: `${command} ${commandArgs.join(' ')}`,
+      startedAt: Date.now(),
+      logFile,
+    };
+
+    addProcess(processInfo);
+
+    // Unref so parent can exit and process runs independently
+    child.unref();
+
+    // Show minimal output
+    console.log(`✓ Started "${projectName}" (${scriptName}) in background [PID: ${child.pid}]`);
+    console.log(`  Logs: ${logFile}`);
+    console.log(`  Command: ${command} ${commandArgs.join(' ')}\n`);
+
+    // For background processes, we can't easily do reactive detection
+    // But we can check the log file after a short delay for port conflicts and URLs
+    setTimeout(async () => {
+      try {
+        // Wait a bit for process to start and potentially fail
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        if (fs.existsSync(logFile)) {
+          const logContent = fs.readFileSync(logFile, 'utf-8');
+          
+          // Check for port conflicts
+          const port = extractPortFromError(logContent);
+          if (port) {
+            console.error(`\n⚠️  Port conflict detected in background process: port ${port} is in use`);
+            console.error(`   Check log file: ${logFile}`);
+            console.error(`   Use: prx <project> <script> --force to auto-resolve port conflicts\n`);
+          }
+          
+          // Extract URLs from output
+          const urls = extractUrlsFromOutput(logContent);
+          if (urls.length > 0) {
+            updateProcessUrls(child.pid!, urls);
+          }
+        }
+      } catch {
+        // Ignore errors checking log file
+      }
+    }, 3000);
+    
+    // Also check for URLs from detected ports
+    setTimeout(async () => {
+      try {
+        const db = getDatabaseManager();
+        const project = db.getProjectByPath(projectPath);
+        if (project) {
+          const ports = db.getProjectPorts(project.id);
+          const urls: string[] = [];
+          for (const portInfo of ports) {
+            if (portInfo.script_name === scriptName) {
+              urls.push(`http://localhost:${portInfo.port}`);
+            }
+          }
+          if (urls.length > 0) {
+            updateProcessUrls(child.pid!, urls);
+          }
+        }
+      } catch {
+        // Ignore errors
+      }
+    }, 5000);
+
+    // Resolve immediately since process is running in background
+    resolve(0);
+  });
+}
+
