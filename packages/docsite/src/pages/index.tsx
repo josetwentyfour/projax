@@ -31,8 +31,7 @@ function HomepageHeader() {
               View on GitHub
             </Link>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
-          <span>Install</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center', color: '#fff', fontSize: '1.2rem', fontWeight: 'semibold' }}>
           <div className={styles.installCommand}>
             <code>npm install -g projax</code>
           </div>
