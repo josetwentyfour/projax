@@ -1,6 +1,6 @@
 {
   "name": "projax-workspace",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "description": "projax - Cross-platform project management dashboard with CLI and web interface",
   "author": "Jose Viscasillas <viscasillas@me.com>",
   "repostory": {
@@ -39,6 +39,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "turbo": "^2.6.1",
     "typescript": "^5.3.3"
   },
   "engines": {
