@@ -7,7 +7,7 @@ tsconfig.webview.json
 esbuild.js
 vite.config.ts
 
-# Build artifacts
+# Build artifacts  
 node_modules/**
 .vscode/**
 .vscode-test/**
@@ -28,3 +28,7 @@ npm-debug.log*
 **/*.test.tsx
 **/*.spec.ts
 **/*.spec.tsx
+
+# Exclude all sibling packages
+../**
+!../vscode-extension/**
