@@ -2,14 +2,14 @@
 
 ## ✅ Successfully Published to npm
 
-### Version 1.3.10 (Latest)
+### Version 1.3.11 (Latest)
 
-**Package**: `projax@1.3.10`  
+**Package**: `projax@1.3.11`  
 **Published**: November 19, 2025  
 **Publisher**: jose24  
 **Registry**: https://registry.npmjs.org/package/projax  
-**Package Size**: 550.2 kB (2.6 MB unpacked)  
-**Total Files**: 98
+**Package Size**: 1.5 MB (5.9 MB unpacked)  
+**Total Files**: 123
 
 ---
 
@@ -51,7 +51,7 @@ npm install -g projax
 
 # Verify installation
 prx --version
-# Should show: 1.3.10
+# Should show: 1.3.11
 
 # Get started
 prx --help
@@ -157,7 +157,13 @@ prx <project> [script] [args]       # Quick script execution
 
 ## 🔄 Recent Updates
 
-### v1.3.10 (Current)
+### v1.3.11 (Current)
+- 🔧 Fixed JSON syntax error in API package.json
+- ✅ Improved package quality and consistency
+- 💎 Enhanced prxi terminal UI appearance
+- 📦 Verified build reliability across all packages
+
+### v1.3.10
 - 🔒 Secure external link handling in Electron app
 - ✅ URL protocol validation
 - ✅ shell.openExternal() integration
