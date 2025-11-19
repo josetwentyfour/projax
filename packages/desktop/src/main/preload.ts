@@ -57,6 +57,7 @@ export interface ElectronAPI {
     startedAt: number;
     logFile: string;
     detectedUrls?: string[];
+    detectedPorts?: number[];
   }>>;
   stopScript: (pid: number) => Promise<boolean>;
   stopProject: (projectPath: string) => Promise<number>;

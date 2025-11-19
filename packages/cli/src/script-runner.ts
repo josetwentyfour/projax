@@ -500,6 +500,7 @@ export interface BackgroundProcess {
   startedAt: number;
   logFile: string;
   detectedUrls?: string[];
+  detectedPorts?: number[];
 }
 
 /**
@@ -649,13 +650,22 @@ function extractUrlsFromOutput(output: string): string[] {
 }
 
 /**
- * Update process with detected URLs
+ * Update process with detected URLs and ports
  */
 function updateProcessUrls(pid: number, urls: string[]): void {
   const processes = loadProcesses();
   const process = processes.find(p => p.pid === pid);
   if (process) {
     process.detectedUrls = urls;
+    // Extract ports from URLs
+    const ports = new Set<number>();
+    for (const url of urls) {
+      const match = url.match(/:(\d+)/);
+      if (match) {
+        ports.add(parseInt(match[1], 10));
+      }
+    }
+    process.detectedPorts = Array.from(ports).sort((a, b) => a - b);
     saveProcesses(processes);
   }
 }

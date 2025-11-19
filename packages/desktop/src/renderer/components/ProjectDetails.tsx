@@ -531,14 +531,28 @@ const loadScripts = async () => {
                             const minutes = Math.floor(uptime / 60);
                             const seconds = uptime % 60;
                             const uptimeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+                            // Use detected ports from running process if available, otherwise fall back to static ports
+                            const displayPorts = p.detectedPorts && p.detectedPorts.length > 0 
+                              ? p.detectedPorts 
+                              : uniquePorts;
                             return (
                               <div key={p.pid} className="process-badge">
                                 <span className="process-indicator">●</span>
                                 <span className="process-pid">PID: {p.pid}</span>
                                 <span className="process-uptime">{uptimeStr}</span>
-                                {uniquePorts.length > 0 && (
-                                  <span className="process-port">:{uniquePorts.join(', ')}</span>
+                                {displayPorts.length > 0 && (
+                                  <span className="process-port">:{displayPorts.join(', ')}</span>
                                 )}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStopScript(p.pid);
+                                  }}
+                                  className="btn btn-danger btn-tiny"
+                                  title="Stop process"
+                                >
+                                  Stop
+                                </button>
                               </div>
                             );
                           })}
@@ -546,18 +560,7 @@ const loadScripts = async () => {
                       )}
                     </div>
                     <div className="script-actions">
-                      {isRunning ? (
-                        scriptProcesses.map((p: any) => (
-                          <button
-                            key={p.pid}
-                            onClick={() => handleStopScript(p.pid)}
-                            className="btn btn-danger btn-small"
-                            title="Stop process"
-                          >
-                            Stop
-                          </button>
-                        ))
-                      ) : (
+                      {!isRunning && (
                         <button
                           onClick={() => handleRunScript(script.name, true)}
                           className="btn btn-secondary btn-small"

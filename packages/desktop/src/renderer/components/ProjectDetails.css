@@ -634,6 +634,14 @@
   font-weight: 600;
 }
 
+.btn-tiny {
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  margin-left: 4px;
+}
+
 .script-name {
   font-family: 'SF Mono', 'Monaco', monospace;
   font-size: 13px;
