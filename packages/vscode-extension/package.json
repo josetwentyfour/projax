@@ -46,77 +46,77 @@
     "commands": [
       {
         "command": "projax.openProject",
-        "title": "PROJAX: Open Project",
+        "title": "Open Project",
         "category": "PROJAX",
         "icon": "$(folder-opened)"
       },
       {
         "command": "projax.addProject",
-        "title": "PROJAX: Add Project",
+        "title": "Add Project",
         "category": "PROJAX",
         "icon": "$(add)"
       },
       {
         "command": "projax.addCurrentProject",
-        "title": "PROJAX: Add Current Workspace to PROJAX",
+        "title": "Add Current Workspace to PROJAX",
         "category": "PROJAX",
         "icon": "$(add)"
       },
       {
         "command": "projax.removeCurrentProject",
-        "title": "PROJAX: Remove Current Project from PROJAX",
+        "title": "Remove Current Project from PROJAX",
         "category": "PROJAX",
         "icon": "$(trash)"
       },
       {
         "command": "projax.openInDesktop",
-        "title": "PROJAX: Open Current Project in Desktop App",
+        "title": "Open Current Project in Desktop App",
         "category": "PROJAX",
         "icon": "$(window)"
       },
       {
         "command": "projax.refreshProjects",
-        "title": "PROJAX: Refresh Projects",
+        "title": "Refresh Projects",
         "category": "PROJAX",
         "icon": "$(refresh)"
       },
       {
         "command": "projax.scanProject",
-        "title": "PROJAX: Scan Current Project for Tests",
+        "title": "Scan Current Project for Tests",
         "category": "PROJAX"
       },
       {
         "command": "projax.scanAllProjects",
-        "title": "PROJAX: Scan All Projects",
+        "title": "Scan All Projects",
         "category": "PROJAX"
       },
       {
         "command": "projax.runScript",
-        "title": "PROJAX: Run Script",
+        "title": "Run Script",
         "category": "PROJAX",
         "icon": "$(play)"
       },
       {
         "command": "projax.stopAllScripts",
-        "title": "PROJAX: Stop All Running Scripts",
+        "title": "Stop All Running Scripts",
         "category": "PROJAX",
         "icon": "$(debug-stop)"
       },
       {
         "command": "projax.showRunningProcesses",
-        "title": "PROJAX: Show Running Processes",
+        "title": "Show Running Processes",
         "category": "PROJAX",
         "icon": "$(list-unordered)"
       },
       {
         "command": "projax.openProjectUrl",
-        "title": "PROJAX: Open Project URL",
+        "title": "Open Project URL",
         "category": "PROJAX",
         "icon": "$(link-external)"
       },
       {
         "command": "projax.openSettings",
-        "title": "PROJAX: Open Settings",
+        "title": "Open Settings",
         "category": "PROJAX"
       }
     ],

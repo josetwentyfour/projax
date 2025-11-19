@@ -85,9 +85,9 @@ const config: Config = {
         },
         {
           type: 'docSidebar',
-          sidebarId: 'prxi',
+          sidebarId: 'editors',
           position: 'left',
-          label: 'Prxi',
+          label: 'Editors',
         },
         {
           type: 'docSidebar',
@@ -100,6 +100,12 @@ const config: Config = {
           sidebarId: 'troubleshooting',
           position: 'left',
           label: 'Troubleshooting',
+        },
+        {
+          href: 'https://img.shields.io/npm/v/projax?style=flat-square&logo=npm&label=v3.3.0',
+          label: 'v3.3.0',
+          position: 'right',
+          className: 'header-version-badge',
         },
         {
           href: 'https://github.com/josetwentyfour/projax',

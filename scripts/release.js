@@ -30,16 +30,25 @@ async function question(prompt) {
 async function main() {
   console.log('🚀 PROJAX Release Script\n');
   
+  // Parse CLI arguments
+  const args = process.argv.slice(2);
+  const bumpTypeArg = args.find(arg => ['patch', 'minor', 'major'].includes(arg));
+  const autoYes = args.includes('-y') || args.includes('--yes');
+  
   // Check git status
   try {
     const status = execSync('git status --porcelain', { encoding: 'utf-8' });
     if (status) {
       console.log('⚠️  You have uncommitted changes:');
       console.log(status);
-      const proceed = await question('\nContinue anyway? (y/N): ');
-      if (proceed.toLowerCase() !== 'y') {
-        console.log('Aborted.');
-        process.exit(0);
+      if (autoYes) {
+        console.log('Auto-accepting with -y flag...\n');
+      } else {
+        const proceed = await question('\nContinue anyway? (y/N): ');
+        if (proceed.toLowerCase() !== 'y') {
+          console.log('Aborted.');
+          process.exit(0);
+        }
       }
     }
   } catch (error) {
@@ -48,7 +57,13 @@ async function main() {
   }
 
   // Get version bump type
-  const bumpType = await question('Version bump type (patch/minor/major) [patch]: ') || 'patch';
+  let bumpType;
+  if (bumpTypeArg) {
+    bumpType = bumpTypeArg;
+    console.log(`Using bump type from argument: ${bumpType}\n`);
+  } else {
+    bumpType = await question('Version bump type (patch/minor/major) [patch]: ') || 'patch';
+  }
   
   if (!['patch', 'minor', 'major'].includes(bumpType)) {
     console.error('Invalid bump type. Use patch, minor, or major.');
@@ -95,7 +110,13 @@ async function main() {
   console.log('  ✓ All commands tested successfully\n');
 
   // 4. Commit changes
-  const commitMsg = await question(`\nCommit message [Release v${newVersion}]: `) || `Release v${newVersion}`;
+  let commitMsg;
+  if (autoYes) {
+    commitMsg = `Release v${newVersion}`;
+    console.log(`\nUsing default commit message: ${commitMsg}`);
+  } else {
+    commitMsg = await question(`\nCommit message [Release v${newVersion}]: `) || `Release v${newVersion}`;
+  }
   exec('git add -A', 'Stage changes');
   exec(`git commit -m "${commitMsg}"`, 'Commit changes');
 
@@ -103,20 +124,35 @@ async function main() {
   exec(`git tag -a v${newVersion} -m "Release v${newVersion}"`, 'Create git tag');
 
   // 6. Push to GitHub
-  const pushConfirm = await question('\nPush to GitHub? (Y/n): ');
+  let pushConfirm = 'y';
+  if (!autoYes) {
+    pushConfirm = await question('\nPush to GitHub? (Y/n): ');
+  } else {
+    console.log('\nAuto-accepting push to GitHub with -y flag...');
+  }
   if (pushConfirm.toLowerCase() !== 'n') {
     exec('git push origin main', 'Push to main branch');
     exec(`git push origin v${newVersion}`, 'Push tag');
   }
 
   // 7. Publish to npm
-  const publishConfirm = await question('\nPublish to npm? (Y/n): ');
+  let publishConfirm = 'y';
+  if (!autoYes) {
+    publishConfirm = await question('\nPublish to npm? (Y/n): ');
+  } else {
+    console.log('\nAuto-accepting npm publish with -y flag...');
+  }
   if (publishConfirm.toLowerCase() !== 'n') {
     exec('cd packages/cli && npm publish --access public', 'Publish to npm');
   }
 
   // 8. Deploy docs
-  const docsConfirm = await question('\nDeploy documentation to gh-pages? (Y/n): ');
+  let docsConfirm = 'y';
+  if (!autoYes) {
+    docsConfirm = await question('\nDeploy documentation to gh-pages? (Y/n): ');
+  } else {
+    console.log('\nAuto-accepting docs deployment with -y flag...');
+  }
   if (docsConfirm.toLowerCase() !== 'n') {
     exec('cd packages/docsite && npm run deploy', 'Deploy documentation');
   }

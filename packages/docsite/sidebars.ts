@@ -43,6 +43,18 @@ const sidebars: SidebarsConfig = {
         },
         'cli/advanced-features',
         'cli/shell-integration',
+        {
+          type: 'category',
+          label: 'Terminal UI (Prxi)',
+          items: [
+            'prxi/overview',
+            'prxi/installation',
+            'prxi/features',
+            'prxi/keyboard-shortcuts',
+            'prxi/usage',
+            'prxi/development',
+          ],
+        },
       ],
     },
   ],
@@ -92,21 +104,6 @@ const sidebars: SidebarsConfig = {
         'desktop/usage',
         'desktop/integration',
         'desktop/development',
-      ],
-    },
-  ],
-
-  prxi: [
-    {
-      type: 'category',
-      label: 'Prxi',
-      items: [
-        'prxi/overview',
-        'prxi/installation',
-        'prxi/features',
-        'prxi/keyboard-shortcuts',
-        'prxi/usage',
-        'prxi/development',
       ],
     },
   ],
