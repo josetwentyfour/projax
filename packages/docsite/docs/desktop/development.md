@@ -13,7 +13,7 @@ Development setup and guidelines for the Desktop app.
 ### Clone and Install
 
 ```bash
-git clone https://github.com/projax/projax.git
+git clone https://github.com/josetwentyfour/projax.git
 cd projax
 npm install
 ```

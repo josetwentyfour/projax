@@ -1,6 +1,6 @@
 # API Overview
 
-The projax API is a RESTful API server built with Express that provides programmatic access to all projax operations. It uses a JSON database (lowdb) for storage and automatically handles port discovery and CORS.
+The PROJAX API is a RESTful API server built with Express that provides programmatic access to all PROJAX operations. It uses a JSON database (lowdb) for storage and automatically handles port discovery and CORS.
 
 ## Features
 

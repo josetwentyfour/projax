@@ -1,10 +1,10 @@
 # CLI Overview
 
-The projax CLI (`prx`) is a full-featured command-line tool for managing local development projects. It provides commands for adding, listing, scanning, and running projects, along with advanced features like background execution and port conflict resolution.
+The PROJAX CLI (`prx`) is a full-featured command-line tool for managing local development projects. It provides commands for adding, listing, scanning, and running projects, along with advanced features like background execution and port conflict resolution.
 
 ## Installation
 
-The CLI is installed globally when you install projax:
+The CLI is installed globally when you install PROJAX:
 
 ```bash
 npm install -g projax

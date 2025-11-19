@@ -7,7 +7,7 @@
 
 ## Global Installation
 
-Install projax globally using npm:
+Install PROJAX globally using npm:
 
 ```bash
 npm install -g projax
@@ -17,13 +17,13 @@ After installation, the `prx` command will be available globally in your termina
 
 ## Verify Installation
 
-Check that projax is installed correctly:
+Check that PROJAX is installed correctly:
 
 ```bash
 prx --help
 ```
 
-You should see the projax welcome screen with available commands.
+You should see the PROJAX welcome screen with available commands.
 
 ## Database Setup
 
@@ -63,7 +63,7 @@ If you want to contribute to projax or run it from source:
 
 ```bash
 # Clone the repository
-git clone https://github.com/projax/projax.git
+git clone https://github.com/josetwentyfour/projax.git
 cd projax
 
 # Install dependencies

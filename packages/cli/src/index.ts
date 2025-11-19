@@ -1434,6 +1434,115 @@ program
     }
   });
 
+// Start Documentation Site command
+program
+  .command('docs')
+  .description('Start the documentation site')
+  .option('--dev', 'Start in development mode (with hot reload)')
+  .option('--build', 'Build the documentation site')
+  .action(async (options) => {
+    try {
+      // Check for local docsite (development mode)
+      const localDocsitePath = path.join(__dirname, '..', '..', 'docsite');
+      const isLocalDev = fs.existsSync(localDocsitePath) && fs.existsSync(path.join(localDocsitePath, 'package.json'));
+      
+      if (!isLocalDev) {
+        console.error('Error: Documentation site not found.');
+        console.error('\nThe documentation site is only available in local development.');
+        console.error('Please run this command from the projax repository root.');
+        process.exit(1);
+      }
+      
+      if (options.build) {
+        // Build the documentation site
+        console.log('Building documentation site...');
+        const { execSync } = require('child_process');
+        try {
+          execSync('npm run build', {
+            cwd: localDocsitePath,
+            stdio: 'inherit'
+          });
+          console.log('\n✓ Documentation site built successfully!');
+          console.log('Run "npm run serve" in packages/docsite to serve the built site.');
+        } catch (error) {
+          console.error('\nBuild failed.');
+          process.exit(1);
+        }
+        return;
+      }
+      
+      if (options.dev) {
+        // Development mode - start Docusaurus dev server
+        console.log('Starting documentation site in development mode...');
+        const { spawn } = require('child_process');
+        
+        const docusaurusProcess = spawn('npm', ['start'], {
+          cwd: localDocsitePath,
+          stdio: 'inherit',
+          shell: true,
+        });
+        
+        // Handle process termination
+        process.on('SIGINT', () => {
+          docusaurusProcess.kill();
+          process.exit(0);
+        });
+        
+        process.on('SIGTERM', () => {
+          docusaurusProcess.kill();
+          process.exit(0);
+        });
+        
+        return;
+      }
+      
+      // Production mode - check if built, then serve
+      const buildPath = path.join(localDocsitePath, 'build');
+      if (!fs.existsSync(buildPath)) {
+        console.log('Documentation site not built.');
+        console.log('Building documentation site...');
+        const { execSync } = require('child_process');
+        try {
+          execSync('npm run build', {
+            cwd: localDocsitePath,
+            stdio: 'inherit'
+          });
+        } catch (error) {
+          console.error('\nBuild failed. Try running in dev mode: prx docs --dev');
+          console.error('Or manually build: cd packages/docsite && npm run build');
+          process.exit(1);
+        }
+      }
+      
+      console.log('Starting documentation site server...');
+      const { spawn } = require('child_process');
+      
+      const serveProcess = spawn('npm', ['run', 'serve'], {
+        cwd: localDocsitePath,
+        stdio: 'inherit',
+        shell: true,
+      });
+      
+      // Handle process termination
+      process.on('SIGINT', () => {
+        serveProcess.kill();
+        process.exit(0);
+      });
+      
+      process.on('SIGTERM', () => {
+        serveProcess.kill();
+        process.exit(0);
+      });
+    } catch (error) {
+      console.error('Error starting documentation site:', error instanceof Error ? error.message : error);
+      console.log('\nTroubleshooting:');
+      console.log('1. Try dev mode: prx docs --dev');
+      console.log('2. Or build manually: npm run build:docsite');
+      console.log('3. Or run dev server: cd packages/docsite && npm start');
+      process.exit(1);
+    }
+  });
+
 // API command - show API info and manage API server
 program
   .command('api')
@@ -1534,7 +1643,7 @@ program
 // Check if first argument is not a known command
 (async () => {
   const args = process.argv.slice(2);
-  const knownCommands = ['prxi', 'i', 'add', 'list', 'scan', 'remove', 'rn', 'rename', 'cd', 'pwd', 'run', 'ps', 'stop', 'web', 'desktop', 'ui', 'scripts', 'scan-ports', 'api', 'desc', 'description', 'tags', 'open', 'files', 'urls', '--help', '-h', '--version', '-V'];
+  const knownCommands = ['prxi', 'i', 'add', 'list', 'scan', 'remove', 'rn', 'rename', 'cd', 'pwd', 'run', 'ps', 'stop', 'web', 'desktop', 'ui', 'scripts', 'scan-ports', 'api', 'docs', 'desc', 'description', 'tags', 'open', 'files', 'urls', '--help', '-h', '--version', '-V'];
 
   // If we have at least 1 argument and first is not a known command, treat as project identifier
   if (args.length >= 1 && !knownCommands.includes(args[0])) {

@@ -1,6 +1,6 @@
 # Prxi Overview
 
-Prxi (pronounced "projax-i") is the interactive Terminal UI (TUI) for projax, built with Ink and React.
+prxi (pronounced "prixi") is the interactive Terminal UI (TUI) for PROJAX, built with Ink and React.
 
 ## Features
 

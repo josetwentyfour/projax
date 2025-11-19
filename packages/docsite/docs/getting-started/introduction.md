@@ -1,10 +1,10 @@
 # Introduction
 
-**projax** is a cross-platform project management dashboard for tracking local development projects. It provides a powerful CLI tool, interactive Terminal UI (TUI), Desktop app (Electron-based), REST API, and built-in tools for test detection, port management, and script execution.
+**PROJAX** is a cross-platform project management dashboard for tracking local development projects. It provides a powerful CLI tool, interactive Terminal UI (TUI), Desktop app (Electron-based), REST API, and built-in tools for test detection, port management, and script execution.
 
-## What is projax?
+## What is PROJAX?
 
-projax helps developers manage multiple local development projects efficiently. Instead of manually navigating between project directories, remembering script names, or dealing with port conflicts, projax provides a unified interface to:
+PROJAX helps developers manage multiple local development projects efficiently. Instead of manually navigating between project directories, remembering script names, or dealing with port conflicts, PROJAX provides a unified interface to:
 
 - Track and organize multiple projects from different directories
 - Automatically detect test files and frameworks
@@ -64,7 +64,7 @@ projax helps developers manage multiple local development projects efficiently. 
 
 ## Architecture
 
-projax is built as a monorepo with the following packages:
+PROJAX is built as a monorepo with the following packages:
 
 - **@projax/core**: Shared database and utilities
 - **@projax/cli**: Command-line interface
@@ -76,7 +76,7 @@ All packages share the same JSON database located at `~/.projax/data.json` (or `
 
 ## Next Steps
 
-- [Installation Guide](/docs/getting-started/installation) - Get projax installed and running
+- [Installation Guide](/docs/getting-started/installation) - Get PROJAX installed and running
 - [Quick Start](/docs/getting-started/quick-start) - Learn the basics in minutes
-- [Architecture Overview](/docs/getting-started/architecture) - Understand how projax works
+- [Architecture Overview](/docs/getting-started/architecture) - Understand how PROJAX works
 

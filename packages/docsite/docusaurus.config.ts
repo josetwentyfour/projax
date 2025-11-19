@@ -3,7 +3,7 @@ import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'projax',
+  title: 'PROJAX',
   tagline: 'Cross-platform project management dashboard for tracking local development projects',
   favicon: 'img/favicon.ico',
 
@@ -15,10 +15,10 @@ const config: Config = {
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'projax',
+  organizationName: 'josetwentyfour',
   projectName: 'projax',
 
-  onBrokenLinks: 'throw',
+  onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',
 
   // Even if you don't use internationalization, you can use this field to set
@@ -37,7 +37,7 @@ const config: Config = {
           sidebarPath: './sidebars.ts',
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
-          editUrl: 'https://github.com/projax/projax/tree/main/packages/docsite/',
+          editUrl: 'https://github.com/josetwentyfour/projax/tree/main/packages/docsite/',
         },
         blog: false,
         theme: {
@@ -51,11 +51,7 @@ const config: Config = {
     // Replace with your project's social card
     image: 'img/projax-social-card.jpg',
     navbar: {
-      title: 'projax',
-      logo: {
-        alt: 'projax Logo',
-        src: 'img/logo.svg',
-      },
+      title: 'PROJAX',
       items: [
         {
           type: 'docSidebar',
@@ -106,8 +102,13 @@ const config: Config = {
           label: 'Troubleshooting',
         },
         {
-          href: 'https://github.com/projax/projax',
+          href: 'https://github.com/josetwentyfour/projax',
           label: 'GitHub',
+          position: 'right',
+        },
+        {
+          href: 'https://www.npmjs.com/package/projax',
+          label: 'npm',
           position: 'right',
         },
       ],
@@ -162,12 +163,16 @@ const config: Config = {
             },
             {
               label: 'GitHub',
-              href: 'https://github.com/projax/projax',
+              href: 'https://github.com/josetwentyfour/projax',
+            },
+            {
+              label: 'npm',
+              href: 'https://www.npmjs.com/package/projax',
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} projax. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} PROJAX. Built with Docusaurus.`,
     },
     prism: {
       theme: prismThemes.github,

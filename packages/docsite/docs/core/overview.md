@@ -1,10 +1,10 @@
 # Core Overview
 
-The `@projax/core` package provides shared functionality used by all other projax packages. It includes database management, test detection, port scanning, and settings management.
+The `@projax/core` package provides shared functionality used by all other PROJAX packages. It includes database management, test detection, port scanning, and settings management.
 
 ## Purpose
 
-The core package serves as the foundation for all projax functionality:
+The core package serves as the foundation for all PROJAX functionality:
 - Shared database operations
 - Test framework detection
 - Port extraction from config files

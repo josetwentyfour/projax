@@ -28,7 +28,7 @@ For development or building from source:
 
 ```bash
 # Clone repository
-git clone https://github.com/projax/projax.git
+git clone https://github.com/josetwentyfour/projax.git
 cd projax
 
 # Install dependencies
