@@ -24,12 +24,16 @@ export class WorkspaceDetector {
    * Detect if current workspace is a PROJAX project
    */
   async detectCurrentProject(): Promise<Project | null> {
+    const logger = require('../utils/logger').getLogger();
+    
     if (!this.provider) {
+      logger.warn('[WorkspaceDetector] No provider available');
       return null;
     }
 
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
+      logger.info('[WorkspaceDetector] No workspace folders open');
       this.currentProject = null;
       this.notifyCallbacks();
       return null;
@@ -38,18 +42,30 @@ export class WorkspaceDetector {
     // Use the first workspace folder
     const workspacePath = workspaceFolders[0].uri.fsPath;
     const normalizedPath = path.normalize(workspacePath);
+    logger.info(`[WorkspaceDetector] Checking workspace: ${normalizedPath}`);
 
     try {
       const projects = await this.provider.getProjects();
+      logger.info(`[WorkspaceDetector] Found ${projects.length} projects in PROJAX`);
+      
       const project = projects.find(p => {
         const projectPath = path.normalize(p.path);
-        return projectPath === normalizedPath || normalizedPath.startsWith(projectPath + path.sep);
+        const matches = projectPath === normalizedPath || normalizedPath.startsWith(projectPath + path.sep);
+        logger.info(`[WorkspaceDetector] Comparing "${p.name}": ${projectPath} === ${normalizedPath} ? ${matches}`);
+        return matches;
       });
 
       this.currentProject = project || null;
+      if (project) {
+        logger.info(`[WorkspaceDetector] ✓ Matched project: ${project.name} (ID: ${project.id})`);
+      } else {
+        logger.info('[WorkspaceDetector] ✗ No matching project found');
+      }
+      
       this.notifyCallbacks();
       return this.currentProject;
     } catch (error) {
+      logger.error('[WorkspaceDetector] Error detecting project', error as Error);
       this.currentProject = null;
       this.notifyCallbacks();
       return null;

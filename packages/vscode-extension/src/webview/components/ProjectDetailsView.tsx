@@ -40,9 +40,11 @@ const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({ vscode }) => {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
+      console.log('[ProjectDetailsView] Received message:', message.command, message);
       switch (message.command) {
         case 'updateProject':
           if (message.project) {
+            console.log('[ProjectDetailsView] Setting project:', message.project.name);
             setProject(message.project);
             setProjectName(message.project.name);
             setProjectDescription(message.project.description || '');
@@ -52,6 +54,7 @@ const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({ vscode }) => {
             setScripts(message.scripts || null);
             setRunningProcesses(message.runningProcesses || []);
           } else {
+            console.log('[ProjectDetailsView] No project in message');
             setProject(null);
           }
           break;
@@ -65,6 +68,7 @@ const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({ vscode }) => {
     };
 
     window.addEventListener('message', handleMessage);
+    console.log('[ProjectDetailsView] Component mounted, waiting for messages...');
     return () => {
       window.removeEventListener('message', handleMessage);
     };

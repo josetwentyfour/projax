@@ -113,14 +113,14 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden; /* Prevent container itself from scrolling */
 }
 
 .project-search {
   padding: 0.75rem;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-secondary);
-  flex-shrink: 0;
-  position: sticky;
+  flex-shrink: 0; /* Don't shrink, stays fixed at top */
   top: 0;
   z-index: 10;
 }

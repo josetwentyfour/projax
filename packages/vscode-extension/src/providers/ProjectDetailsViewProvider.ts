@@ -91,7 +91,16 @@ export class ProjectDetailsViewProvider implements vscode.WebviewViewProvider {
       }
     });
 
-    // Initial load
+    // Load current workspace project if it was already detected
+    // This happens when the webview is created after workspace detection
+    if (!this.currentProject) {
+      const detectedProject = this.workspaceDetector.getCurrentProject();
+      if (detectedProject) {
+        this.currentProject = detectedProject;
+      }
+    }
+    
+    // Initial load - this will show current project or "no project selected"
     this.refresh();
   }
 
@@ -211,13 +220,7 @@ export class ProjectDetailsViewProvider implements vscode.WebviewViewProvider {
 
   public setProject(project: Project | null): void {
     this.currentProject = project;
-    if (project && this._view) {
-      // Request scripts for the project
-      this._view.webview.postMessage({
-        command: 'getScripts',
-        projectPath: project.path,
-      });
-    }
+    // Refresh to load project data - this works even if view hasn't loaded yet
     this.refresh();
   }
 
@@ -250,32 +253,60 @@ export class ProjectDetailsViewProvider implements vscode.WebviewViewProvider {
   }
 
   public async refresh(): Promise<void> {
+    const logger = require('../utils/logger').getLogger();
+    
     if (!this._view) {
+      logger.info('[ProjectDetails] View not ready yet');
       return;
     }
 
     if (!this.currentProject) {
-      this._view.webview.postMessage({
-        command: 'updateProject',
-        project: null,
-      });
-      return;
+      logger.info('[ProjectDetails] No current project set, checking detector...');
+      // Check if workspace detector has a current project we haven't loaded yet
+      const detectedProject = this.workspaceDetector.getCurrentProject();
+      if (detectedProject) {
+        logger.info(`[ProjectDetails] Found detected project: ${detectedProject.name}`);
+        this.currentProject = detectedProject;
+      } else {
+        logger.info('[ProjectDetails] No project detected, sending null');
+        this._view.webview.postMessage({
+          command: 'updateProject',
+          project: null,
+        });
+        return;
+      }
     }
 
     try {
+      logger.info(`[ProjectDetails] Loading project: ${this.currentProject.name} (ID: ${this.currentProject.id})`);
       const project = await this.provider.getProject(this.currentProject.id);
       if (!project) {
+        logger.warn('[ProjectDetails] Project not found in database');
         this.currentProject = null;
+        this._view.webview.postMessage({
+          command: 'updateProject',
+          project: null,
+        });
         return;
       }
 
       const tests = await this.provider.getTestsByProject(project.id);
       const ports = await this.provider.getProjectPorts(project.id);
-      const tags = await this.provider.getAllTags();
+      
+      // Get all tags - handle errors gracefully
+      let tags: string[] = [];
+      try {
+        tags = await this.provider.getAllTags();
+      } catch (tagError) {
+        logger.warn('[ProjectDetails] Failed to load tags, continuing without them');
+        // Continue without tags
+      }
+      
       const scriptRunner = getScriptRunner();
       const scripts = await scriptRunner.getProjectScripts(project.path);
       const runningProcesses = scriptRunner.getRunningProcessesForProject(project.path);
 
+      logger.info(`[ProjectDetails] Sending project data: ${project.name}, ${tests.length} tests, ${ports.length} ports`);
       this._view.webview.postMessage({
         command: 'updateProject',
         project,
@@ -286,6 +317,7 @@ export class ProjectDetailsViewProvider implements vscode.WebviewViewProvider {
         runningProcesses,
       });
     } catch (error) {
+      logger.error('[ProjectDetails] Failed to refresh', error as Error);
       vscode.window.showErrorMessage(`Failed to refresh project details: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
@@ -295,11 +327,34 @@ export class ProjectDetailsViewProvider implements vscode.WebviewViewProvider {
       vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'details.js')
     );
     
-    // Discover and include all chunk files
+    // Discover and include all chunk files and CSS files
     const chunksDir = vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'chunks');
+    const assetsDir = vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'assets');
     const chunksDirPath = chunksDir.fsPath;
-    let chunkScripts = '';
+    const assetsDirPath = assetsDir.fsPath;
     
+    let chunkScripts = '';
+    let cssLinks = '';
+    
+    // Load CSS files
+    try {
+      if (fs.existsSync(assetsDirPath)) {
+        const cssFiles = fs.readdirSync(assetsDirPath)
+          .filter(file => file.endsWith('.css'))
+          .sort();
+        
+        for (const cssFile of cssFiles) {
+          const cssUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(assetsDir, cssFile)
+          );
+          cssLinks += `        <link href="${cssUri}" rel="stylesheet">\n`;
+        }
+      }
+    } catch (error) {
+      console.warn('Could not read assets directory:', error);
+    }
+    
+    // Load chunk JS files
     try {
       if (fs.existsSync(chunksDirPath)) {
         const chunkFiles = fs.readdirSync(chunksDirPath)
@@ -314,7 +369,6 @@ export class ProjectDetailsViewProvider implements vscode.WebviewViewProvider {
         }
       }
     } catch (error) {
-      // If chunks directory doesn't exist or can't be read, continue without chunks
       console.warn('Could not read chunks directory:', error);
     }
 
@@ -323,7 +377,7 @@ export class ProjectDetailsViewProvider implements vscode.WebviewViewProvider {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
+${cssLinks}        <style>
           body {
             padding: 0;
             margin: 0;

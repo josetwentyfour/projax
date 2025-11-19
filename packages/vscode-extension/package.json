@@ -4,6 +4,10 @@
   "description": "PROJAX project management dashboard for VS Code, Cursor, and Windsurf",
   "version": "3.0.0",
   "publisher": "projax",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/josetwentyfour/projax.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -42,30 +46,78 @@
     "commands": [
       {
         "command": "projax.openProject",
-        "title": "Open Project",
+        "title": "PROJAX: Open Project",
+        "category": "PROJAX",
         "icon": "$(folder-opened)"
       },
       {
         "command": "projax.addProject",
-        "title": "Add Project",
+        "title": "PROJAX: Add Project",
+        "category": "PROJAX",
         "icon": "$(add)"
       },
       {
+        "command": "projax.addCurrentProject",
+        "title": "PROJAX: Add Current Workspace to PROJAX",
+        "category": "PROJAX",
+        "icon": "$(add)"
+      },
+      {
+        "command": "projax.removeCurrentProject",
+        "title": "PROJAX: Remove Current Project from PROJAX",
+        "category": "PROJAX",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "projax.openInDesktop",
+        "title": "PROJAX: Open Current Project in Desktop App",
+        "category": "PROJAX",
+        "icon": "$(window)"
+      },
+      {
         "command": "projax.refreshProjects",
-        "title": "Refresh Projects",
+        "title": "PROJAX: Refresh Projects",
+        "category": "PROJAX",
         "icon": "$(refresh)"
       },
       {
         "command": "projax.scanProject",
-        "title": "Scan Project for Tests"
+        "title": "PROJAX: Scan Current Project for Tests",
+        "category": "PROJAX"
       },
       {
         "command": "projax.scanAllProjects",
-        "title": "Scan All Projects"
+        "title": "PROJAX: Scan All Projects",
+        "category": "PROJAX"
+      },
+      {
+        "command": "projax.runScript",
+        "title": "PROJAX: Run Script",
+        "category": "PROJAX",
+        "icon": "$(play)"
+      },
+      {
+        "command": "projax.stopAllScripts",
+        "title": "PROJAX: Stop All Running Scripts",
+        "category": "PROJAX",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "projax.showRunningProcesses",
+        "title": "PROJAX: Show Running Processes",
+        "category": "PROJAX",
+        "icon": "$(list-unordered)"
+      },
+      {
+        "command": "projax.openProjectUrl",
+        "title": "PROJAX: Open Project URL",
+        "category": "PROJAX",
+        "icon": "$(link-external)"
       },
       {
         "command": "projax.openSettings",
-        "title": "Open PROJAX Settings"
+        "title": "PROJAX: Open Settings",
+        "category": "PROJAX"
       }
     ],
     "configuration": {
@@ -108,24 +160,24 @@
     "watch:extension": "node esbuild.js --watch",
     "watch:webview": "vite build --watch",
     "clean": "rm -rf dist",
-    "package": "vsce package",
+    "package": "npm run build && vsce package --out ../../release/",
     "vscode:prepublish": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",
+    "@types/vscode": "^1.85.0",
     "@vitejs/plugin-react": "^4.2.1",
+    "@vscode/vsce": "^2.32.0",
     "concurrently": "^8.2.2",
     "esbuild": "^0.19.8",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "typescript": "^5.3.3",
-    "vite": "^4.5.0",
-    "@types/vscode": "^1.85.0"
+    "vite": "^4.5.0"
   },
   "dependencies": {
     "axios": "^1.6.2"
   }
 }
-

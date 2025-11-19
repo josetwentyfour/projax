@@ -1,16 +1,30 @@
-.vscode/**
-.vscode-test/**
+# Source files
 src/**
-.gitignore
-.yarnrc
-vscode/**
-**/*.map
-**/*.ts
-!**/*.js.map
+*.ts
+*.tsx
 tsconfig.json
+tsconfig.webview.json
 esbuild.js
 vite.config.ts
-tsconfig.webview.json
-node_modules/**
-*.vsix
 
+# Build artifacts
+node_modules/**
+.vscode/**
+.vscode-test/**
+
+# Development files
+.gitignore
+.eslintrc.json
+.prettierrc
+*.log
+npm-debug.log*
+
+# Documentation
+*.md
+!README.md
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx

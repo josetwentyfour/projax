@@ -111,6 +111,19 @@ const sidebars: SidebarsConfig = {
     },
   ],
 
+  editors: [
+    {
+      type: 'category',
+      label: 'Editors',
+      items: [
+        'editors/overview',
+        'editors/installation',
+        'editors/usage',
+        'editors/commands',
+      ],
+    },
+  ],
+
   examples: [
     {
       type: 'category',

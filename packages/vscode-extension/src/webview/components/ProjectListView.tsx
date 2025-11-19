@@ -15,8 +15,10 @@ const ProjectListView: React.FC<ProjectListViewProps> = ({ vscode }) => {
   const [sortType, setSortType] = useState<SortType>('name-asc');
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Listen for messages from extension
@@ -28,13 +30,26 @@ const ProjectListView: React.FC<ProjectListViewProps> = ({ vscode }) => {
           setLoading(false);
           if (message.currentProject) {
             setCurrentProjectPath(message.currentProject.path);
+            setCurrentProjectId(message.currentProject.id);
+            // Notify extension to select and show details for current project
+            vscode.postMessage({ 
+              command: 'selectCurrentProject',
+              projectId: message.currentProject.id 
+            });
           }
           break;
         case 'updateCurrentProject':
           if (message.project) {
             setCurrentProjectPath(message.project.path);
+            setCurrentProjectId(message.project.id);
+            // Notify extension to select and show details for current project
+            vscode.postMessage({ 
+              command: 'selectCurrentProject',
+              projectId: message.project.id 
+            });
           } else {
             setCurrentProjectPath(null);
+            setCurrentProjectId(null);
           }
           break;
         case 'updateSelectedProject':
@@ -106,6 +121,20 @@ const ProjectListView: React.FC<ProjectListViewProps> = ({ vscode }) => {
 
     return sorted;
   }, [projects, searchQuery, sortType]);
+
+  // Auto-scroll to current project after filtering/sorting - bring it to the top
+  useEffect(() => {
+    if (currentProjectId && listRef.current) {
+      // Use setTimeout to ensure DOM has updated
+      setTimeout(() => {
+        const projectElement = listRef.current?.querySelector(`[data-project-id="${currentProjectId}"]`);
+        if (projectElement) {
+          // Scroll to bring current project as high as possible
+          projectElement.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        }
+      }, 100);
+    }
+  }, [currentProjectId, filteredAndSortedProjects]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -195,7 +224,7 @@ const ProjectListView: React.FC<ProjectListViewProps> = ({ vscode }) => {
         </div>
       </div>
 
-      <div className="project-list">
+      <div className="project-list" ref={listRef}>
         {filteredAndSortedProjects.length === 0 ? (
           <div className="project-list-empty">
             <p>{searchQuery ? 'No projects match your search' : 'No projects yet'}</p>
@@ -209,13 +238,14 @@ const ProjectListView: React.FC<ProjectListViewProps> = ({ vscode }) => {
           filteredAndSortedProjects.map((project) => {
             const isCurrent = currentProjectPath && (
               project.path === currentProjectPath || 
-              project.path.startsWith(currentProjectPath + '/')
+              currentProjectPath.startsWith(project.path + '/')
             );
             const isSelected = selectedProjectId === project.id;
 
             return (
               <div
                 key={project.id}
+                data-project-id={project.id}
                 className={`project-item ${isCurrent ? 'current' : ''} ${isSelected ? 'selected' : ''}`}
                 onClick={() => handleProjectClick(project)}
               >

@@ -62,6 +62,16 @@ export class ProjectsViewProvider implements vscode.WebviewViewProvider {
         case 'openProject':
           await this.openProject(message.project);
           break;
+        case 'selectCurrentProject':
+          // Auto-select and show details for current project
+          if (message.projectId) {
+            const project = await this.provider.getProject(message.projectId);
+            if (project && this.detailsProvider) {
+              this.selectedProject = project;
+              this.detailsProvider.setProject(project);
+            }
+          }
+          break;
         case 'refreshProjects':
           await this.refresh();
           break;
@@ -183,6 +193,9 @@ export class ProjectsViewProvider implements vscode.WebviewViewProvider {
 
     try {
       const projects = await this.provider.getProjects();
+      
+      // Re-detect current project in case it wasn't detected yet
+      await this.workspaceDetector.detectCurrentProject();
       const currentProject = this.workspaceDetector.getCurrentProject();
 
       this._view.webview.postMessage({
@@ -190,6 +203,11 @@ export class ProjectsViewProvider implements vscode.WebviewViewProvider {
         projects,
         currentProject: currentProject ? { id: currentProject.id, path: currentProject.path } : null,
       });
+      
+      // If there's a current project and details provider, update it
+      if (currentProject && this.detailsProvider) {
+        this.detailsProvider.setProject(currentProject);
+      }
     } catch (error) {
       vscode.window.showErrorMessage(`Failed to refresh projects: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -200,11 +218,34 @@ export class ProjectsViewProvider implements vscode.WebviewViewProvider {
       vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'projects.js')
     );
     
-    // Discover and include all chunk files
+    // Discover and include all chunk files and CSS files
     const chunksDir = vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'chunks');
+    const assetsDir = vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'assets');
     const chunksDirPath = chunksDir.fsPath;
-    let chunkScripts = '';
+    const assetsDirPath = assetsDir.fsPath;
     
+    let chunkScripts = '';
+    let cssLinks = '';
+    
+    // Load CSS files
+    try {
+      if (fs.existsSync(assetsDirPath)) {
+        const cssFiles = fs.readdirSync(assetsDirPath)
+          .filter(file => file.endsWith('.css'))
+          .sort();
+        
+        for (const cssFile of cssFiles) {
+          const cssUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(assetsDir, cssFile)
+          );
+          cssLinks += `        <link href="${cssUri}" rel="stylesheet">\n`;
+        }
+      }
+    } catch (error) {
+      console.warn('Could not read assets directory:', error);
+    }
+    
+    // Load chunk JS files
     try {
       if (fs.existsSync(chunksDirPath)) {
         const chunkFiles = fs.readdirSync(chunksDirPath)
@@ -219,7 +260,6 @@ export class ProjectsViewProvider implements vscode.WebviewViewProvider {
         }
       }
     } catch (error) {
-      // If chunks directory doesn't exist or can't be read, continue without chunks
       console.warn('Could not read chunks directory:', error);
     }
 
@@ -228,7 +268,7 @@ export class ProjectsViewProvider implements vscode.WebviewViewProvider {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
+${cssLinks}        <style>
           body {
             padding: 0;
             margin: 0;

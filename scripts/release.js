@@ -73,7 +73,13 @@ async function main() {
   // 3. Build all packages
   exec('npm run build', 'Build all packages');
 
-  // 3.5 Test with npm link
+  // 3.5 Package VS Code extension
+  console.log('\n📦 Packaging VS Code extension...');
+  exec('mkdir -p release', 'Create release directory');
+  exec('npm run package --workspace=packages/vscode-extension', 'Package .vsix file');
+  console.log('✓ VS Code extension packaged to ./release/');
+
+  // 3.6 Test with npm link
   console.log('\n🧪 Testing commands with npm link...');
   exec('cd packages/cli && npm link', 'Link CLI for testing');
   

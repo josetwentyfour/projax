@@ -1580,6 +1580,66 @@ program
     }
   });
 
+// VS Code Extension command - show extension info and location
+program
+  .command('vscode-extension')
+  .alias('extension')
+  .alias('ext')
+  .description('Show VS Code extension information and installation instructions')
+  .action(async () => {
+    try {
+      console.log('\n📦 PROJAX for Editors Extension\n');
+      console.log('This extension brings PROJAX to VS Code, Cursor, and Windsurf editors.\n');
+      
+      // Find the .vsix file
+      const releaseDir = path.join(__dirname, '..', '..', '..', 'release');
+      const vsixFiles = fs.existsSync(releaseDir) 
+        ? fs.readdirSync(releaseDir).filter(f => f.endsWith('.vsix'))
+        : [];
+      
+      if (vsixFiles.length === 0) {
+        console.log('⚠️  No .vsix file found. Build the extension first:');
+        console.log('   npm run package --workspace=packages/vscode-extension\n');
+      } else {
+        const vsixPath = path.join(releaseDir, vsixFiles[0]);
+        console.log(`✅ Extension package: ${vsixFiles[0]}`);
+        console.log(`📁 Location: ${vsixPath}\n`);
+        
+        console.log('📖 Installation Instructions:\n');
+        console.log('1. Open VS Code, Cursor, or Windsurf');
+        console.log('2. Go to Extensions (Cmd+Shift+X / Ctrl+Shift+X)');
+        console.log('3. Click the "..." menu → "Install from VSIX..."');
+        console.log(`4. Navigate to: ${releaseDir}`);
+        console.log(`5. Select: ${vsixFiles[0]}\n`);
+        
+        console.log('🚀 Quick Install:\n');
+        console.log(`   code --install-extension "${vsixPath}"`);
+        console.log(`   cursor --install-extension "${vsixPath}"`);
+        console.log(`   windsurf --install-extension "${vsixPath}"\n`);
+        
+        // Open in Finder/Explorer
+        const platform = process.platform;
+        if (platform === 'darwin') {
+          console.log('💡 Open in Finder:');
+          console.log(`   open "${releaseDir}"\n`);
+        } else if (platform === 'win32') {
+          console.log('💡 Open in Explorer:');
+          console.log(`   explorer "${releaseDir}"\n`);
+        } else {
+          console.log('💡 Open in File Manager:');
+          console.log(`   xdg-open "${releaseDir}"\n`);
+        }
+      }
+      
+      console.log('📚 Documentation:');
+      console.log('   https://projax.dev/docs/editors\n');
+      
+    } catch (error) {
+      console.error('Error:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
 // API command - show API info and manage API server
 program
   .command('api')
@@ -1680,7 +1740,7 @@ program
 // Check if first argument is not a known command
 (async () => {
   const args = process.argv.slice(2);
-  const knownCommands = ['prxi', 'i', 'add', 'list', 'scan', 'remove', 'rn', 'rename', 'cd', 'pwd', 'run', 'ps', 'stop', 'web', 'desktop', 'ui', 'scripts', 'scan-ports', 'api', 'docs', 'desc', 'description', 'tags', 'open', 'files', 'urls', '--help', '-h', '--version', '-V'];
+  const knownCommands = ['prxi', 'i', 'add', 'list', 'scan', 'remove', 'rn', 'rename', 'cd', 'pwd', 'run', 'ps', 'stop', 'web', 'desktop', 'ui', 'scripts', 'scan-ports', 'api', 'docs', 'vscode-extension', 'extension', 'ext', 'desc', 'description', 'tags', 'open', 'files', 'urls', '--help', '-h', '--version', '-V'];
 
   // If we have at least 1 argument and first is not a known command, treat as project identifier
   if (args.length >= 1 && !knownCommands.includes(args[0])) {
