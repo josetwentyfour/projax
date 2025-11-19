@@ -1,6 +1,6 @@
 # projax
 
-A cross-platform project management dashboard for tracking local development projects. Features a powerful CLI tool and an optional Desktop web interface (Electron-based).
+A cross-platform project management dashboard for tracking local development projects. Features a powerful CLI tool, interactive Terminal UI (TUI), Desktop app (Electron-based), REST API, and built-in tools for test detection, port management, and script execution.
 
 ## Features
 

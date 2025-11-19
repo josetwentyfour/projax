@@ -31,7 +31,6 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   const [loadingScripts, setLoadingScripts] = useState(false);
   const [ports, setPorts] = useState<any[]>([]);
   const [loadingPorts, setLoadingPorts] = useState(false);
-  const [scanningPorts, setScanningPorts] = useState(false);
   const [runningScripts, setRunningScripts] = useState<Set<string>>(new Set());
   const [runningProcesses, setRunningProcesses] = useState<any[]>([]);
   const [loadingProcesses, setLoadingProcesses] = useState(false);
@@ -39,6 +38,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   const [tagInput, setTagInput] = useState('');
   const [allTags, setAllTags] = useState<string[]>([]);
   const [projectTags, setProjectTags] = useState<string[]>(project.tags || []);
+  const [editorSettings, setEditorSettings] = useState<any>(null);
 
   useEffect(() => {
     setProjectName(project.name);
@@ -48,6 +48,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     loadPorts();
     loadRunningProcesses();
     loadAllTags();
+    loadEditorSettings();
     
     // Refresh running processes every 5 seconds
     const interval = setInterval(() => {
@@ -74,7 +75,16 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     }
   };
 
-  const loadScripts = async () => {
+    const loadEditorSettings = async () => {
+    try {
+      const settings = await window.electronAPI.getSettings();
+      setEditorSettings(settings.editor);
+    } catch (error) {
+      console.error('Error loading editor settings:', error);
+    }
+  };
+
+const loadScripts = async () => {
     try {
       setLoadingScripts(true);
       const projectScripts = await window.electronAPI.getProjectScripts(project.path);
@@ -157,6 +167,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
         onProjectUpdate(updated);
       }
       await loadAllTags();
+    loadEditorSettings();
     } catch (error) {
       console.error('Error adding tag:', error);
       alert('Failed to add tag');
@@ -172,6 +183,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
         onProjectUpdate(updated);
       }
       await loadAllTags();
+    loadEditorSettings();
     } catch (error) {
       console.error('Error removing tag:', error);
       alert('Failed to remove tag');
@@ -183,18 +195,6 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     tag.toLowerCase().includes(tagInput.toLowerCase())
   );
 
-  const handleScanPorts = async () => {
-    try {
-      setScanningPorts(true);
-      const projectPorts = await window.electronAPI.scanProjectPorts(project.id);
-      setPorts(projectPorts);
-    } catch (error) {
-      console.error('Error scanning ports:', error);
-      alert('Failed to scan ports');
-    } finally {
-      setScanningPorts(false);
-    }
-  };
 
   const loadRunningProcesses = async () => {
     try {
@@ -380,15 +380,21 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
             className="btn btn-secondary"
             title="Open in editor"
           >
-            Open in Editor
+            Editor{editorSettings ? ` (${editorSettings.type})` : ''}
           </button>
           <button
-            onClick={handleScanPorts}
-            disabled={scanningPorts}
+            onClick={async () => {
+              try {
+                await window.electronAPI.openInFiles(project.path);
+              } catch (error) {
+                console.error('Error opening directory:', error);
+                alert(`Failed to open directory: ${error instanceof Error ? error.message : String(error)}`);
+              }
+            }}
             className="btn btn-secondary"
-            title="Scan for ports"
+            title="Open in file manager"
           >
-            {scanningPorts ? 'Scanning...' : 'Scan Ports'}
+            Files
           </button>
         </div>
       </div>
@@ -483,77 +489,11 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
         </div>
       </div>
 
-      {ports.length > 0 && (
-        <div className="ports-section">
-          <div className="section-header">
-            <h3>Detected Ports ({ports.length})</h3>
-            <button
-              onClick={handleScanPorts}
-              disabled={scanningPorts}
-              className="btn btn-secondary btn-small"
-            >
-              {scanningPorts ? 'Scanning...' : 'Rescan'}
-            </button>
-          </div>
-          <div className="ports-list">
-            {ports.map((port) => (
-              <div key={port.id} className="port-item">
-                <div className="port-info">
-                  <span className="port-number">{port.port}</span>
-                  {port.script_name && (
-                    <span className="port-script">({port.script_name})</span>
-                  )}
-                  <span className="port-source">{port.config_source}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {allUrls.length > 0 && (
         <ProjectUrls urls={allUrls} onOpenUrl={handleOpenUrl} />
       )}
 
-      {runningProcesses.length > 0 && (
-        <div className="running-processes-section">
-          <div className="section-header">
-            <h3>Running Processes ({runningProcesses.length})</h3>
-            <button
-              onClick={handleStopAll}
-              className="btn btn-danger btn-small"
-              title="Stop all processes"
-            >
-              Stop All
-            </button>
-          </div>
-          <div className="processes-list">
-            {runningProcesses.map((process: any) => {
-              const uptime = Math.floor((Date.now() - process.startedAt) / 1000);
-              const minutes = Math.floor(uptime / 60);
-              const seconds = uptime % 60;
-              const uptimeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-              
-              return (
-                <div key={process.pid} className="process-item">
-                  <div className="process-info">
-                    <span className="process-name">{process.scriptName}</span>
-                    <span className="process-pid">PID: {process.pid}</span>
-                    <span className="process-uptime">Uptime: {uptimeStr}</span>
-                  </div>
-                  <button
-                    onClick={() => handleStopScript(process.pid)}
-                    className="btn btn-danger btn-small"
-                    title="Stop process"
-                  >
-                    Stop
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      
 
       {scripts && (
         <div className="scripts-section">
@@ -567,58 +507,71 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
             <div className="no-scripts">No scripts found in this project.</div>
           ) : (
             <div className="scripts-list">
-              {scripts.scripts.map((script: any) => (
-                <div key={script.name} className="script-item">
-                  <div className="script-info">
-                    <span className="script-name">{script.name}</span>
-                    <span className="script-command">{script.command}</span>
-                    <span className="script-runner">{script.runner}</span>
+              {scripts.scripts.map((script: any) => {
+                const scriptProcesses = runningProcesses.filter((p: any) => p.scriptName === script.name);
+                const isRunning = scriptProcesses.length > 0;
+                // Match ports from the ports array with this script name
+                const scriptPorts = ports
+                  .filter((port: any) => port.script_name === script.name)
+                  .map((port: any) => port.port);
+                const uniquePorts = Array.from(new Set(scriptPorts)).sort((a, b) => a - b);
+                
+                return (
+                  <div key={script.name} className={`script-item ${isRunning ? 'running' : ''}`}>
+                    <div className="script-info">
+                      <div className="script-header">
+                        <span className="script-name">{script.name}</span>
+                        <span className="script-command">{script.command}</span>
+                        <span className="script-runner">{script.runner}</span>
+                      </div>
+                      {isRunning && (
+                        <div className="script-process-info">
+                          {scriptProcesses.map((p: any) => {
+                            const uptime = Math.floor((Date.now() - p.startedAt) / 1000);
+                            const minutes = Math.floor(uptime / 60);
+                            const seconds = uptime % 60;
+                            const uptimeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+                            return (
+                              <div key={p.pid} className="process-badge">
+                                <span className="process-indicator">●</span>
+                                <span className="process-pid">PID: {p.pid}</span>
+                                <span className="process-uptime">{uptimeStr}</span>
+                                {uniquePorts.length > 0 && (
+                                  <span className="process-port">:{uniquePorts.join(', ')}</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <div className="script-actions">
+                      {isRunning ? (
+                        scriptProcesses.map((p: any) => (
+                          <button
+                            key={p.pid}
+                            onClick={() => handleStopScript(p.pid)}
+                            className="btn btn-danger btn-small"
+                            title="Stop process"
+                          >
+                            Stop
+                          </button>
+                        ))
+                      ) : (
+                        <button
+                          onClick={() => handleRunScript(script.name, true)}
+                          className="btn btn-secondary btn-small"
+                          title="Run in background"
+                        >
+                          Run
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="script-actions">
-                    {runningScripts.has(script.name) ? (
-                      <>
-                        <span className="running-indicator" title="Running">●</span>
-                        {runningProcesses
-                          .filter((p: any) => p.scriptName === script.name)
-                          .map((p: any) => (
-                            <button
-                              key={p.pid}
-                              onClick={() => handleStopScript(p.pid)}
-                              className="btn btn-danger btn-small"
-                              title="Stop script"
-                            >
-                              Stop
-                            </button>
-                          ))}
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => handleRunScript(script.name, true)}
-                        className="btn btn-secondary btn-small"
-                        title="Run in background"
-                      >
-                        Run
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
-        </div>
-      )}
-
-      {Object.keys(testsByFramework).length > 0 && (
-        <div className="framework-breakdown">
-          <h3>Framework Breakdown</h3>
-          <div className="framework-list">
-            {Object.entries(testsByFramework).map(([framework, count]) => (
-              <div key={framework} className="framework-item">
-                <span className="framework-name">{framework}</span>
-                <span className="framework-count">{count}</span>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 

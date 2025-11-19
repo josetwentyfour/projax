@@ -595,6 +595,17 @@ ipcMain.handle('open-in-editor', async (_, projectPath: string) => {
   }).unref();
 });
 
+// Open project directory in file manager
+ipcMain.handle('open-in-files', async (_, projectPath: string) => {
+  try {
+    await shell.openPath(projectPath);
+  } catch (error) {
+    console.error('Error opening directory:', error);
+    throw error;
+  }
+});
+
+
 // Get settings
 ipcMain.handle('get-settings', async () => {
   try {

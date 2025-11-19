@@ -251,7 +251,9 @@ program
   .description('Add a project to the dashboard')
   .argument('[path]', 'Path to the project directory')
   .option('-n, --name <name>', 'Custom name for the project (defaults to directory name)')
-  .action(async (projectPath?: string, options?: { name?: string }) => {
+  .option('-d, --description <description>', 'Description for the project')
+  .option('--tags <tags>', 'Comma-separated list of tags')
+  .action(async (projectPath?: string, options?: { name?: string; description?: string; tags?: string }) => {
     try {
       let finalPath = projectPath;
       
@@ -326,8 +328,27 @@ program
       
       const project = db.addProject(projectName, resolvedPath);
       
+      // Update description and tags if provided
+      const updates: { description?: string | null; tags?: string[] } = {};
+      if (options?.description !== undefined) {
+        updates.description = options.description.trim() || null;
+      }
+      if (options?.tags) {
+        updates.tags = options.tags.split(',').map(t => t.trim()).filter(Boolean);
+      }
+      
+      if (Object.keys(updates).length > 0) {
+        db.updateProject(project.id, updates);
+      }
+      
       console.log(`✓ Added project: ${project.name} (ID: ${project.id})`);
       console.log(`  Path: ${project.path}`);
+      if (options?.description) {
+        console.log(`  Description: ${options.description}`);
+      }
+      if (options?.tags) {
+        console.log(`  Tags: ${options.tags}`);
+      }
       
       // Ask if user wants to scan for tests
       const inquirer = (await import('inquirer')).default;
@@ -598,6 +619,281 @@ program
       console.log(`✓ Renamed project from "${project.name}" to "${updated.name}"`);
     } catch (error) {
       console.error('Error renaming project:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Description command
+program
+  .command('desc')
+  .alias('description')
+  .description('Set or get project description')
+  .argument('<project>', 'Project ID or name')
+  .argument('[description]', 'New description (leave empty to view current)')
+  .action((projectIdentifier: string, description?: string) => {
+    try {
+      const db = getDatabaseManager();
+      const projects = getAllProjects();
+      const project = projects.find(
+        p => p.id.toString() === projectIdentifier || p.name === projectIdentifier
+      );
+      
+      if (!project) {
+        console.error(`Error: Project not found: ${projectIdentifier}`);
+        process.exit(1);
+      }
+      
+      if (description === undefined) {
+        // Show current description
+        if (project.description) {
+          console.log(project.description);
+        } else {
+          console.log('No description set.');
+        }
+      } else {
+        // Update description
+        const trimmedDesc = description.trim() || null;
+        db.updateProject(project.id, { description: trimmedDesc });
+        if (trimmedDesc) {
+          console.log(`✓ Updated description for "${project.name}": ${trimmedDesc}`);
+        } else {
+          console.log(`✓ Removed description for "${project.name}"`);
+        }
+      }
+    } catch (error) {
+      console.error('Error managing description:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Tags command
+program
+  .command('tags')
+  .description('Manage project tags')
+  .argument('<project>', 'Project ID or name')
+  .argument('[action]', 'Action: add, remove, or list (default: list)', 'list')
+  .argument('[tag]', 'Tag name (required for add/remove)')
+  .action((projectIdentifier: string, action: string = 'list', tag?: string) => {
+    try {
+      const db = getDatabaseManager();
+      const projects = getAllProjects();
+      const project = projects.find(
+        p => p.id.toString() === projectIdentifier || p.name === projectIdentifier
+      );
+      
+      if (!project) {
+        console.error(`Error: Project not found: ${projectIdentifier}`);
+        process.exit(1);
+      }
+      
+      const currentTags = project.tags || [];
+      
+      if (action === 'list' || !action) {
+        // List tags
+        if (currentTags.length === 0) {
+          console.log('No tags set for this project.');
+        } else {
+          console.log(`Tags for "${project.name}":`);
+          currentTags.forEach(t => console.log(`  - ${t}`));
+        }
+      } else if (action === 'add') {
+        if (!tag || !tag.trim()) {
+          console.error('Error: Tag name is required for add action');
+          process.exit(1);
+        }
+        const newTag = tag.trim();
+        if (currentTags.includes(newTag)) {
+          console.log(`Tag "${newTag}" already exists for "${project.name}"`);
+        } else {
+          db.updateProject(project.id, { tags: [...currentTags, newTag] });
+          console.log(`✓ Added tag "${newTag}" to "${project.name}"`);
+        }
+      } else if (action === 'remove') {
+        if (!tag || !tag.trim()) {
+          console.error('Error: Tag name is required for remove action');
+          process.exit(1);
+        }
+        const tagToRemove = tag.trim();
+        if (!currentTags.includes(tagToRemove)) {
+          console.log(`Tag "${tagToRemove}" does not exist for "${project.name}"`);
+        } else {
+          db.updateProject(project.id, { tags: currentTags.filter(t => t !== tagToRemove) });
+          console.log(`✓ Removed tag "${tagToRemove}" from "${project.name}"`);
+        }
+      } else {
+        console.error(`Error: Unknown action "${action}". Use: list, add, or remove`);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error('Error managing tags:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Open command - open project in editor
+program
+  .command('open')
+  .description('Open project in editor')
+  .argument('<project>', 'Project ID or name')
+  .action(async (projectIdentifier: string) => {
+    try {
+      const projects = getAllProjects();
+      const project = projects.find(
+        p => p.id.toString() === projectIdentifier || p.name === projectIdentifier
+      );
+      
+      if (!project) {
+        console.error(`Error: Project not found: ${projectIdentifier}`);
+        process.exit(1);
+      }
+      
+      // Load settings from core
+      const corePath = path.join(__dirname, '..', '..', 'core', 'dist', 'settings');
+      const localCorePath = path.join(__dirname, '..', '..', '..', 'core', 'dist', 'settings');
+      let settings: any;
+      
+      try {
+        settings = require(corePath);
+      } catch {
+        try {
+          settings = require(localCorePath);
+        } catch {
+          console.error('Error: Could not load settings');
+          process.exit(1);
+        }
+      }
+      
+      const editorSettings = settings.getEditorSettings();
+      let command: string;
+      const args: string[] = [project.path];
+      
+      if (editorSettings.type === 'custom' && editorSettings.customPath) {
+        command = editorSettings.customPath;
+      } else {
+        switch (editorSettings.type) {
+          case 'vscode':
+            command = 'code';
+            break;
+          case 'cursor':
+            command = 'cursor';
+            break;
+          case 'windsurf':
+            command = 'windsurf';
+            break;
+          case 'zed':
+            command = 'zed';
+            break;
+          default:
+            command = 'code';
+        }
+      }
+      
+      const { spawn } = require('child_process');
+      spawn(command, args, {
+        detached: true,
+        stdio: 'ignore',
+      }).unref();
+      
+      console.log(`✓ Opening "${project.name}" in ${editorSettings.type || 'editor'}...`);
+    } catch (error) {
+      console.error('Error opening project:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Files command - open project directory
+program
+  .command('files')
+  .description('Open project directory in file manager')
+  .argument('<project>', 'Project ID or name')
+  .action((projectIdentifier: string) => {
+    try {
+      const projects = getAllProjects();
+      const project = projects.find(
+        p => p.id.toString() === projectIdentifier || p.name === projectIdentifier
+      );
+      
+      if (!project) {
+        console.error(`Error: Project not found: ${projectIdentifier}`);
+        process.exit(1);
+      }
+      
+      let command: string;
+      const args: string[] = [project.path];
+      
+      if (os.platform() === 'darwin') {
+        command = 'open';
+      } else if (os.platform() === 'win32') {
+        command = 'explorer';
+      } else {
+        command = 'xdg-open';
+      }
+      
+      const { spawn } = require('child_process');
+      spawn(command, args, {
+        detached: true,
+        stdio: 'ignore',
+      }).unref();
+      
+      console.log(`✓ Opening "${project.name}" directory...`);
+    } catch (error) {
+      console.error('Error opening directory:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// URLs command - list detected URLs for a project
+program
+  .command('urls')
+  .description('List detected URLs for a project')
+  .argument('<project>', 'Project ID or name')
+  .action(async (projectIdentifier: string) => {
+    try {
+      const projects = getAllProjects();
+      const project = projects.find(
+        p => p.id.toString() === projectIdentifier || p.name === projectIdentifier
+      );
+      
+      if (!project) {
+        console.error(`Error: Project not found: ${projectIdentifier}`);
+        process.exit(1);
+      }
+      
+      const urls = new Set<string>();
+      
+      // Get URLs from running processes
+      const { getRunningProcessesClean } = await import('./script-runner');
+      const runningProcesses = await getRunningProcessesClean();
+      const projectProcesses = runningProcesses.filter((p: any) => p.projectPath === project.path);
+      
+      for (const process of projectProcesses) {
+        if (process.detectedUrls && Array.isArray(process.detectedUrls)) {
+          for (const url of process.detectedUrls) {
+            urls.add(url);
+          }
+        }
+      }
+      
+      // Get URLs from detected ports
+      const db = getDatabaseManager();
+      const projectPorts = db.getProjectPorts(project.id);
+      for (const portInfo of projectPorts) {
+        const url = `http://localhost:${portInfo.port}`;
+        urls.add(url);
+      }
+      
+      const urlArray = Array.from(urls).sort();
+      
+      if (urlArray.length === 0) {
+        console.log(`No URLs detected for "${project.name}"`);
+      } else {
+        console.log(`\nDetected URLs for "${project.name}":`);
+        urlArray.forEach((url, idx) => {
+          console.log(`  ${idx + 1}. ${url}`);
+        });
+      }
+    } catch (error) {
+      console.error('Error listing URLs:', error instanceof Error ? error.message : error);
       process.exit(1);
     }
   });
@@ -1238,7 +1534,7 @@ program
 // Check if first argument is not a known command
 (async () => {
   const args = process.argv.slice(2);
-  const knownCommands = ['prxi', 'i', 'add', 'list', 'scan', 'remove', 'rn', 'rename', 'cd', 'pwd', 'run', 'ps', 'stop', 'web', 'desktop', 'ui', 'scripts', 'scan-ports', 'api', '--help', '-h', '--version', '-V'];
+  const knownCommands = ['prxi', 'i', 'add', 'list', 'scan', 'remove', 'rn', 'rename', 'cd', 'pwd', 'run', 'ps', 'stop', 'web', 'desktop', 'ui', 'scripts', 'scan-ports', 'api', 'desc', 'description', 'tags', 'open', 'files', 'urls', '--help', '-h', '--version', '-V'];
 
   // If we have at least 1 argument and first is not a known command, treat as project identifier
   if (args.length >= 1 && !knownCommands.includes(args[0])) {

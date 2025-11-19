@@ -62,6 +62,7 @@ export interface ElectronAPI {
   stopProject: (projectPath: string) => Promise<number>;
   openUrl: (url: string) => Promise<void>;
   openInEditor: (projectPath: string) => Promise<void>;
+  openInFiles: (projectPath: string) => Promise<void>;
   getSettings: () => Promise<{
     editor: { type: string; customPath?: string };
     browser: { type: string; customPath?: string };
@@ -96,6 +97,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopProject: (projectPath: string) => ipcRenderer.invoke('stop-project', projectPath),
   openUrl: (url: string) => ipcRenderer.invoke('open-url', url),
   openInEditor: (projectPath: string) => ipcRenderer.invoke('open-in-editor', projectPath),
+  openInFiles: (projectPath: string) => ipcRenderer.invoke('open-in-files', projectPath),
   openExternal: (url: string) => ipcRenderer.send('open-external-url', url),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
