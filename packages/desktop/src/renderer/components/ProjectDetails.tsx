@@ -384,7 +384,7 @@ const loadScripts = async () => {
             className="btn btn-secondary"
             title="Open in editor"
           >
-            Editor{editorSettings ? ` (${editorSettings.type})` : ''}
+            Editor
           </button>
           <button
             onClick={async () => {
