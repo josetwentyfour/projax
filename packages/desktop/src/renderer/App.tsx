@@ -338,41 +338,38 @@ function App() {
         </main>
 
         {terminalProcess && (
-          <div style={{ width: `${terminalWidth}px`, position: 'relative', flexShrink: 0 }}>
-            <Rnd
-              size={{ width: terminalWidth, height: '100%' }}
-              position={{ x: 0, y: 0 }}
-              minWidth={350}
-              maxWidth={800}
-              disableDragging={true}
-              enableResizing={{ left: true }}
-              onResizeStop={(e, direction, ref, d) => {
-                const newWidth = terminalWidth - d.width;
-                setTerminalWidth(Math.max(350, Math.min(800, newWidth)));
-              }}
-              style={{
-                position: 'static',
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-              }}
-              resizeHandleStyles={{
-                left: {
-                  width: '4px',
-                  left: '-2px',
-                  cursor: 'col-resize',
-                  backgroundColor: 'transparent',
-                },
-              }}
-            >
-              <Terminal
-                pid={terminalProcess.pid}
-                scriptName={terminalProcess.scriptName}
-                projectName={terminalProcess.projectName}
-                onClose={handleCloseTerminal}
-              />
-            </Rnd>
-          </div>
+          <Rnd
+            size={{ width: terminalWidth, height: '100%' }}
+            position={{ x: 0, y: 0 }}
+            minWidth={350}
+            maxWidth={800}
+            disableDragging={true}
+            enableResizing={{ left: true }}
+            onResize={(e, direction, ref, d) => {
+              const newWidth = terminalWidth - d.width;
+              setTerminalWidth(Math.max(350, Math.min(800, newWidth)));
+            }}
+            style={{
+              position: 'relative',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+            resizeHandleStyles={{
+              left: {
+                width: '4px',
+                left: '-2px',
+                cursor: 'col-resize',
+                backgroundColor: 'transparent',
+              },
+            }}
+          >
+            <Terminal
+              pid={terminalProcess.pid}
+              scriptName={terminalProcess.scriptName}
+              projectName={terminalProcess.projectName}
+              onClose={handleCloseTerminal}
+            />
+          </Rnd>
         )}
       </div>
 
