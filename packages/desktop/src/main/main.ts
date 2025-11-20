@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
+import { Tail } from 'tail';
 import {
   getDatabaseManager,
   getAllProjects,
@@ -15,6 +16,7 @@ import type { Project, Test } from 'projax-core';
 
 let mainWindow: BrowserWindow | null = null;
 let apiProcess: ChildProcess | null = null;
+const logWatchers: Map<number, any> = new Map();
 
 // Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock();
@@ -667,5 +669,88 @@ ipcMain.on('open-external-url', (event, url: string) => {
   } catch (error) {
     console.error('Error opening external URL:', error);
   }
+});
+
+// Watch process output
+ipcMain.handle('watch-process-output', async (_, pid: number) => {
+  try {
+    // Try bundled path first
+    const bundledScriptRunnerPath = path.join(__dirname, '..', 'script-runner.js');
+    const localScriptRunnerPath = path.join(__dirname, '..', '..', 'cli', 'dist', 'script-runner.js');
+    
+    let scriptRunnerPath: string;
+    if (fs.existsSync(bundledScriptRunnerPath)) {
+      scriptRunnerPath = bundledScriptRunnerPath;
+    } else {
+      scriptRunnerPath = localScriptRunnerPath;
+    }
+    
+    const { getRunningProcessesClean } = await import(scriptRunnerPath);
+    const processes = await getRunningProcessesClean();
+    const process = processes.find((p: any) => p.pid === pid);
+    
+    if (!process || !process.logFile) {
+      throw new Error(`Process ${pid} not found or has no log file`);
+    }
+    
+    if (!fs.existsSync(process.logFile)) {
+      throw new Error(`Log file not found: ${process.logFile}`);
+    }
+    
+    // Stop any existing watcher for this PID
+    if (logWatchers.has(pid)) {
+      const existingWatcher = logWatchers.get(pid);
+      existingWatcher.unwatch();
+      logWatchers.delete(pid);
+    }
+    
+    // Read existing content first
+    try {
+      const existingContent = fs.readFileSync(process.logFile, 'utf-8');
+      if (existingContent && mainWindow) {
+        mainWindow.webContents.send('process-output', { pid, data: existingContent });
+      }
+    } catch (error) {
+      console.error('Error reading existing log content:', error);
+    }
+    
+    // Create a tail watcher for the log file
+    const tail = new Tail(process.logFile, {
+      fromBeginning: false,
+      follow: true,
+      useWatchFile: true,
+    });
+    
+    tail.on('line', (data: string) => {
+      if (mainWindow) {
+        mainWindow.webContents.send('process-output', { pid, data: data + '\n' });
+      }
+    });
+    
+    tail.on('error', (error: Error) => {
+      console.error(`Tail error for PID ${pid}:`, error);
+      if (mainWindow) {
+        mainWindow.webContents.send('process-output', { pid, data: `\n[Error reading log: ${error.message}]\n` });
+      }
+    });
+    
+    logWatchers.set(pid, tail);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error watching process output:', error);
+    throw error;
+  }
+});
+
+// Unwatch process output
+ipcMain.handle('unwatch-process-output', async (_, pid: number) => {
+  if (logWatchers.has(pid)) {
+    const watcher = logWatchers.get(pid);
+    watcher.unwatch();
+    logWatchers.delete(pid);
+    return { success: true };
+  }
+  return { success: false };
 });
 

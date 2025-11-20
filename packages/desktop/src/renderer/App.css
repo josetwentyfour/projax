@@ -144,11 +144,28 @@
   color: #f85149;
 }
 
+.btn-tiny {
+  padding: 0.25rem 0.5rem;
+  font-size: 10px;
+}
+
+.terminal-icon {
+  font-size: 14px;
+  display: inline-block;
+}
+
 .app-content {
   display: flex;
   flex: 1;
   overflow: hidden;
   position: relative;
+}
+
+.app-content-with-terminal {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  flex: 1;
+  overflow: hidden;
 }
 
 /* Resize handle styling */

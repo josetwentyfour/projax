@@ -2,6 +2,19 @@
   max-width: 1000px;
 }
 
+.btn-small {
+  padding: 0.35rem 0.75rem;
+  font-size: 11px;
+}
+
+.btn-tiny {
+  padding: 0.25rem 0.5rem;
+  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .project-details-header {
   display: flex;
   justify-content: space-between;

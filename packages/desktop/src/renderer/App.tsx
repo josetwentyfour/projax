@@ -12,6 +12,7 @@ import ProjectSearch, { FilterType, SortType } from './components/ProjectSearch'
 import Settings from './components/Settings';
 import Titlebar from './components/Titlebar';
 import StatusBar from './components/StatusBar';
+import Terminal from './components/Terminal';
 import './App.css';
 
 declare global {
@@ -35,6 +36,11 @@ function App() {
   const [keyboardFocusedIndex, setKeyboardFocusedIndex] = useState<number>(-1);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const [sidebarWidth, setSidebarWidth] = useState<number>(280);
+  const [terminalProcess, setTerminalProcess] = useState<{
+    pid: number;
+    scriptName: string;
+    projectName: string;
+  } | null>(null);
 
   useEffect(() => {
     loadProjects();
@@ -303,6 +309,14 @@ function App() {
     setKeyboardFocusedIndex(-1);
   }, [filteredProjects.length, searchQuery]);
 
+  const handleOpenTerminal = (pid: number, scriptName: string, projectName: string) => {
+    setTerminalProcess({ pid, scriptName, projectName });
+  };
+
+  const handleCloseTerminal = () => {
+    setTerminalProcess(null);
+  };
+
   return (
     <div className="app">
       <Titlebar>
@@ -380,6 +394,7 @@ function App() {
                 loadProjects();
               }}
               onRemoveProject={handleRemoveProject}
+              onOpenTerminal={handleOpenTerminal}
             />
           ) : (
             <div className="empty-state">
@@ -388,6 +403,15 @@ function App() {
             </div>
           )}
         </main>
+
+        {terminalProcess && (
+          <Terminal
+            pid={terminalProcess.pid}
+            scriptName={terminalProcess.scriptName}
+            projectName={terminalProcess.projectName}
+            onClose={handleCloseTerminal}
+          />
+        )}
       </div>
 
       {showAddModal && (

@@ -73,6 +73,12 @@ export interface ElectronAPI {
     browser: { type: string; customPath?: string };
   }) => Promise<void>;
   openExternal: (url: string) => void;
+  watchProcessOutput: (pid: number) => Promise<{ success: boolean }>;
+  unwatchProcessOutput: (pid: number) => Promise<{ success: boolean }>;
+  onProcessOutput: (callback: (event: any, data: { pid: number; data: string }) => void) => void;
+  onProcessExit: (callback: (event: any, data: { pid: number; code: number }) => void) => void;
+  removeProcessOutputListener: (callback: (event: any, data: { pid: number; data: string }) => void) => void;
+  removeProcessExitListener: (callback: (event: any, data: { pid: number; code: number }) => void) => void;
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -102,5 +108,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url: string) => ipcRenderer.send('open-external-url', url),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
+  watchProcessOutput: (pid: number) => ipcRenderer.invoke('watch-process-output', pid),
+  unwatchProcessOutput: (pid: number) => ipcRenderer.invoke('unwatch-process-output', pid),
+  onProcessOutput: (callback: any) => ipcRenderer.on('process-output', callback),
+  onProcessExit: (callback: any) => ipcRenderer.on('process-exit', callback),
+  removeProcessOutputListener: (callback: any) => ipcRenderer.removeListener('process-output', callback),
+  removeProcessExitListener: (callback: any) => ipcRenderer.removeListener('process-exit', callback),
 } as ElectronAPI);
 

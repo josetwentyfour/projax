@@ -194,7 +194,7 @@ function displayLogo() {
   return `
   PROJAX ${packageJson.version}
   
-  Command line not your thing? Try our native desktop app:
+  Command line not your thing? Try our native UI:
   → prx web
   
   `;
@@ -1300,12 +1300,11 @@ program
     }
   });
 
-// Start Desktop UI command
+// Start UI command
 program
   .command('web')
-  .alias('desktop')
   .alias('ui')
-  .description('Start the Desktop web interface')
+  .description('Start the UI web interface')
   .option('--dev', 'Start in development mode (with hot reload)')
   .action(async (options) => {
     try {
@@ -1328,10 +1327,10 @@ program
         }
       }
       
-      // Ensure API server is running before starting Desktop app
+      // Ensure API server is running before starting UI app
       await ensureAPIServerRunning(false);
       
-      // Check for bundled Desktop app first (in dist/desktop when installed globally)
+      // Check for bundled UI app first (in dist/desktop when installed globally)
       // Then check for local development (packages/cli/dist -> packages/desktop)
       // Support both legacy "desktop" folder and current "electron" bundle folder
       const bundledDesktopPathCandidates = [
@@ -1352,17 +1351,17 @@ program
       
       const localDesktopPath = path.join(__dirname, '..', '..', 'desktop');
       const localDesktopMain = path.join(localDesktopPath, 'dist', 'main.js');
-      
-      // Check if bundled desktop exists (global install)
+
+      // Check if bundled UI app exists (global install)
       const hasBundledDesktop = Boolean(bundledDesktopPath && bundledDesktopMain);
-      // Check if local desktop exists (development mode)
+      // Check if local UI app exists (development mode)
       const isLocalDev = fs.existsSync(localDesktopPath) && fs.existsSync(path.join(localDesktopPath, 'package.json'));
       
       let desktopPackagePath: string;
       let desktopMainPath: string;
       
       if (bundledDesktopPath && bundledDesktopMain) {
-        // Bundled Desktop app (global install)
+        // Bundled UI app (global install)
         desktopPackagePath = bundledDesktopPath;
         desktopMainPath = bundledDesktopMain;
       } else if (isLocalDev) {
@@ -1370,21 +1369,21 @@ program
         desktopPackagePath = localDesktopPath;
         desktopMainPath = localDesktopMain;
       } else {
-        console.error('Error: Desktop app not found.');
-        console.error('\nThe Desktop web interface is not available.');
+        console.error('Error: UI app not found.');
+        console.error('\nThe UI web interface is not available.');
         console.error('This may be a packaging issue. Please report this error.');
         process.exit(1);
       }
       
       if (options.dev) {
-        // Development mode - start Vite dev server and Desktop app
+        // Development mode - start Vite dev server and UI app
         if (!isLocalDev) {
           console.error('Error: Development mode is only available in local development.');
-          console.error('The Desktop app must be built for production use.');
+          console.error('The UI app must be built for production use.');
           process.exit(1);
         }
         
-        console.log('Starting Desktop app in development mode...');
+        console.log('Starting UI app in development mode...');
         console.log('Starting Vite dev server on port 7898...');
         
         const { spawn } = require('child_process');
@@ -1403,7 +1402,7 @@ program
           // Wait for Vite to be ready
           if (output.includes('Local:') || output.includes('ready')) {
             setTimeout(() => {
-              console.log('\nStarting Desktop window...');
+              console.log('\nStarting UI window...');
               spawn(electron, [desktopMainPath], {
                 stdio: 'inherit',
                 detached: true,
@@ -1429,14 +1428,14 @@ program
       // Production mode - check if built
       if (!fs.existsSync(desktopMainPath)) {
         if (!isLocalDev) {
-          console.error('Error: Desktop app is not built.');
+          console.error('Error: UI app is not built.');
           console.error('The @projax/desktop package needs to be built.');
           console.error('Please contact the package maintainer or build it locally.');
           process.exit(1);
         }
         
-        console.log('Desktop app not built.');
-        console.log('Building Desktop app...');
+        console.log('UI app not built.');
+        console.log('Building UI app...');
         const { execSync } = require('child_process');
         try {
           // When in local dev, desktopPackagePath points to packages/desktop
@@ -1465,7 +1464,7 @@ program
       
       if (!fs.existsSync(rendererIndex)) {
         if (hasBundledDesktop) {
-          console.error('Error: Renderer files not found in bundled Desktop app.');
+          console.error('Error: Renderer files not found in bundled UI app.');
           console.error('This is a packaging issue. Please report this error.');
           process.exit(1);
         } else {
@@ -1477,7 +1476,7 @@ program
         process.env.NODE_ENV = 'production';
       }
       
-      console.log('Starting Desktop app...');
+      console.log('Starting UI app...');
       const { spawn } = require('child_process');
       const electron = require('electron');
       
@@ -1487,7 +1486,7 @@ program
         env: { ...process.env },
       }).unref();
     } catch (error) {
-      console.error('Error starting Desktop app:', error instanceof Error ? error.message : error);
+      console.error('Error starting UI app:', error instanceof Error ? error.message : error);
       console.log('\nTroubleshooting:');
       console.log('1. Try dev mode: prx web --dev');
       console.log('2. Or build manually: npm run build:desktop');

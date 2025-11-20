@@ -13,6 +13,7 @@ interface ProjectDetailsProps {
   scanning: boolean;
   onProjectUpdate?: (project: Project) => void;
   onRemoveProject?: (projectId: number) => void;
+  onOpenTerminal?: (pid: number, scriptName: string, projectName: string) => void;
 }
 
 const ProjectDetails: React.FC<ProjectDetailsProps> = ({
@@ -22,6 +23,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   scanning,
   onProjectUpdate,
   onRemoveProject,
+  onOpenTerminal,
 }) => {
   const [editingName, setEditingName] = useState(false);
   const [projectName, setProjectName] = useState(project.name);
@@ -543,6 +545,18 @@ const loadScripts = async () => {
                                 {displayPorts.length > 0 && (
                                   <span className="process-port">:{displayPorts.join(', ')}</span>
                                 )}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onOpenTerminal) {
+                                      onOpenTerminal(p.pid, script.name, project.name);
+                                    }
+                                  }}
+                                  className="btn btn-secondary btn-tiny"
+                                  title="View terminal output"
+                                >
+                                  <span className="terminal-icon">⌘</span>
+                                </button>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();

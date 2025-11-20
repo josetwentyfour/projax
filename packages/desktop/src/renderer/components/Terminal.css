@@ -1,0 +1,167 @@
+.terminal-sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 500px;
+  height: 100%;
+  background: #1e1e1e;
+  border-left: 1px solid #333;
+  color: #cccccc;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+}
+
+.terminal-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #252526;
+  border-bottom: 1px solid #333;
+}
+
+.terminal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-icon {
+  color: #4caf50;
+  font-size: 14px;
+}
+
+.terminal-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 2px;
+}
+
+.terminal-script {
+  font-weight: 600;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.terminal-project {
+  font-size: 11px;
+  color: #888;
+}
+
+.terminal-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.terminal-status.running {
+  color: #4caf50;
+  background: rgba(76, 175, 80, 0.15);
+}
+
+.terminal-status.stopped {
+  color: #888;
+  background: rgba(136, 136, 136, 0.15);
+}
+
+.terminal-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.terminal-btn {
+  background: transparent;
+  border: 1px solid #444;
+  color: #cccccc;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.terminal-btn:hover {
+  background: #333;
+  border-color: #555;
+}
+
+.terminal-btn-scroll {
+  font-size: 16px;
+  padding: 2px 8px;
+  font-weight: bold;
+}
+
+.terminal-btn-close {
+  color: #f44336;
+  border-color: #f44336;
+}
+
+.terminal-btn-close:hover {
+  background: rgba(244, 67, 54, 0.1);
+}
+
+.terminal-output {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.terminal-output::-webkit-scrollbar {
+  width: 10px;
+}
+
+.terminal-output::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.terminal-output::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 5px;
+}
+
+.terminal-output::-webkit-scrollbar-thumb:hover {
+  background: #4e4e4e;
+}
+
+.terminal-line {
+  margin-bottom: 2px;
+}
+
+.terminal-empty {
+  color: #888;
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
+}
+
+/* ANSI color support (basic) */
+.terminal-line {
+  color: #cccccc;
+}
+
+/* Error patterns */
+.terminal-line:has-text('error'),
+.terminal-line:has-text('Error'),
+.terminal-line:has-text('ERROR') {
+  color: #f44336;
+}
+
+/* Warning patterns */
+.terminal-line:has-text('warning'),
+.terminal-line:has-text('Warning'),
+.terminal-line:has-text('WARN') {
+  color: #ff9800;
+}
+
+/* Success patterns */
+.terminal-line:has-text('success'),
+.terminal-line:has-text('Success'),
+.terminal-line:has-text('✓') {
+  color: #4caf50;
+}
+

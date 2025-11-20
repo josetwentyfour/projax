@@ -276,9 +276,9 @@ prx prxi      # Full command
 
 See [TUI Component](#tui-component-prxi) section for details.
 
-#### `prx web` / `prx desktop` / `prx ui`
+#### `prx web` / `prx ui`
 
-Start the Desktop web interface.
+Start the UI web interface.
 
 **Options:**
 - `--dev` - Start in development mode (with hot reload)
