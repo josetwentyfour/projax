@@ -986,6 +986,32 @@ export function runScriptInBackground(
       }
     }, 5000);
 
+    // Check for test results periodically (for watch mode tests)
+    // Parse results every 10 seconds for the first 60 seconds, then every 30 seconds
+    let parseAttempt = 0;
+    const parseInterval = setInterval(async () => {
+      parseAttempt++;
+      
+      // Stop parsing after 10 minutes or if process is dead
+      if (parseAttempt > 20 || !child.pid) {
+        clearInterval(parseInterval);
+        return;
+      }
+      
+      await checkAndParseTestResults(logFile, projectPath, scriptName);
+      
+      // After first minute, slow down to every 30 seconds
+      if (parseAttempt >= 6) {
+        clearInterval(parseInterval);
+        const slowInterval = setInterval(async () => {
+          await checkAndParseTestResults(logFile, projectPath, scriptName);
+        }, 30000);
+        
+        // Stop after 10 minutes total
+        setTimeout(() => clearInterval(slowInterval), 540000);
+      }
+    }, 10000); // Initial interval: every 10 seconds
+
     // Resolve with PID since process is running in background
     resolve(child.pid);
   });

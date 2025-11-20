@@ -340,7 +340,6 @@ function App() {
         {terminalProcess && (
           <Rnd
             size={{ width: terminalWidth, height: '100%' }}
-            position={{ x: 0, y: 0 }}
             minWidth={350}
             maxWidth={800}
             disableDragging={true}
@@ -353,6 +352,7 @@ function App() {
               position: 'relative',
               display: 'flex',
               flexDirection: 'column',
+              flexShrink: 0,
             }}
             resizeHandleStyles={{
               left: {
