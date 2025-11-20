@@ -605,6 +605,10 @@
   min-width: 0;
 }
 
+.script-item.running > .script-info {
+  min-width: calc(100% + 18px);
+}
+
 .script-header {
   display: flex;
   align-items: center;
