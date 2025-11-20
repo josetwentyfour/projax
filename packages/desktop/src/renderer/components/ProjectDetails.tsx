@@ -7,9 +7,6 @@ import './ProjectDetails.css';
 
 interface ProjectDetailsProps {
   project: Project;
-  tests: any[];
-  onScan: () => void;
-  scanning: boolean;
   onProjectUpdate?: (project: Project) => void;
   onRemoveProject?: (projectId: number) => void;
   onOpenTerminal?: (pid: number, scriptName: string, projectName: string) => void;
@@ -296,12 +293,6 @@ const loadScripts = async () => {
     ? new Date(project.last_scanned * 1000).toLocaleString()
     : 'Never';
 
-  const testsByFramework = tests.reduce((acc, test) => {
-    const framework = test.framework || 'unknown';
-    acc[framework] = (acc[framework] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
   return (
     <div className="project-details">
       <div className="project-details-header">
@@ -396,14 +387,6 @@ const loadScripts = async () => {
       </div>
 
       <div className="project-stats">
-        <div className="stat-card">
-          <div className="stat-value">{tests.length}</div>
-          <div className="stat-label">Test Files</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{Object.keys(testsByFramework).length}</div>
-          <div className="stat-label">Frameworks</div>
-        </div>
         <div className="stat-card">
           <div className="stat-value">{ports.length}</div>
           <div className="stat-label">Ports</div>

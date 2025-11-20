@@ -322,9 +322,6 @@ function App() {
           {selectedProject ? (
             <ProjectDetails
               project={selectedProject}
-              tests={[]}
-              onScan={() => {}}
-              scanning={false}
               onProjectUpdate={(updated) => {
                 setSelectedProject(updated);
                 loadProjects();

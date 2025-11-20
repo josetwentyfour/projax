@@ -1,6 +1,6 @@
 {
   "name": "projax-workspace",
-  "version": "3.3.24",
+  "version": "3.3.25",
   "description": "projax - Cross-platform project management dashboard with CLI and web interface",
   "author": "Jose Viscasillas <viscasillas@me.com>",
   "repostory": {
@@ -45,8 +45,8 @@
     "release:patch": "echo 'patch' | node scripts/release.js",
     "release:minor": "echo 'minor' | node scripts/release.js",
     "release:major": "echo 'major' | node scripts/release.js",
-    "use:local": "sudo uninstall -g projax && npm link projax",
-    "use:npm": "sudo uninstall -g projax && npm install -g projax"
+    "use:local": "sudo npm uninstall -g projax && sudo npm link projax && zsh",
+    "use:npm": "sudo npm uninstall -g projax && sudo npm install -g projax && zsh"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

@@ -4,7 +4,6 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as net from 'net';
-import { migrateFromSQLite } from './migrate';
 import apiRouter from './routes';
 
 const app: Express = express();
@@ -56,16 +55,6 @@ function writePortToFile(port: number): void {
 // Main function
 async function startServer() {
   try {
-    // Run migration if needed
-    const dataDir = path.join(os.homedir(), '.projax');
-    const jsonPath = path.join(dataDir, 'data.json');
-    const sqlitePath = path.join(dataDir, 'dashboard.db');
-    
-    if (!fs.existsSync(jsonPath) && fs.existsSync(sqlitePath)) {
-      console.log('Running migration from SQLite to JSON...');
-      migrateFromSQLite();
-    }
-    
     // Find available port
     const port = await findAvailablePort();
     
