@@ -582,10 +582,10 @@
   border: 1px solid var(--border-color);
   border-radius: 4px;
   transition: all 0.15s ease;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 1fr auto;
   gap: 1rem;
+  align-items: start;
 }
 
 .script-item:hover {
@@ -601,8 +601,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  flex: 1;
-  min-width: 100%;
+  min-width: 0;
 }
 
 .script-header {
@@ -665,15 +664,18 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
-  min-width: 80px;
+  flex-shrink: 0;
 }
 
 .script-command {
   font-family: 'SF Mono', 'Monaco', monospace;
   font-size: 11px;
   color: var(--text-secondary);
-  flex: 1;
-  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  display: block;
 }
 
 .script-runner {
@@ -685,6 +687,7 @@
   font-weight: 600;
   color: var(--text-tertiary);
   text-transform: uppercase;
+  flex-shrink: 0;
   letter-spacing: 0.3px;
   font-family: 'SF Mono', 'Monaco', monospace;
   flex-shrink: 0;
@@ -694,6 +697,7 @@
   display: flex;
   gap: 0.5rem;
   flex-shrink: 0;
+  align-self: start;
 }
 
 .loading-state,
