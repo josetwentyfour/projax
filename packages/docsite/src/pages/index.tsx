@@ -17,7 +17,7 @@ function HomepageHeader() {
             The Ultimate Cross-Platform Project Management Dashboard
           </p>
           <p className={styles.heroSubtitle}>
-            Powerful CLI, Terminal UI, Desktop App & REST API for managing all your local development projects in one place
+            Powerful CLI, Beautiful Desktop App & REST API for managing all your local development projects in one place
           </p>
           <div className={styles.buttons}>
             <Link
@@ -35,9 +35,9 @@ function HomepageHeader() {
           <div className={styles.installCommand}>
             <code>npm install -g projax</code>
           </div>
-          <span>or try it out</span>
+          <span>then launch the desktop app</span>
           <div className={styles.installCommand}>
-            <code>npx projax@latest</code>
+            <code>prx web</code>
           </div>
           </div>
         </div>
@@ -67,14 +67,14 @@ function HomepageFeatures() {
             description="Full-featured command-line interface for managing projects, running scripts, and automating workflows with intelligent script selection."
           />
           <Feature
-            icon="🎨"
-            title="Terminal UI (Prxi)"
-            description="Beautiful interactive terminal interface with vim bindings, real-time updates, and intuitive project navigation."
-          />
-          <Feature
             icon="🖥️"
             title="Desktop App"
-            description="Electron-based desktop application with a modern UI for visual project management and monitoring."
+            description="Beautiful Electron-based desktop application with a modern UI for visual project management and monitoring."
+          />
+          <Feature
+            icon="🎨"
+            title="Terminal UI (Beta)"
+            description="Interactive terminal interface with vim bindings for keyboard-driven workflows. Currently in beta."
           />
           <Feature
             icon="⚡"
@@ -131,7 +131,7 @@ function QuickStart() {
           <div className={styles.quickStartCard}>
             <div className={styles.stepNumber}>3</div>
             <h3>Run & Manage</h3>
-            <pre><code>prx list{'\n'}prx 1 dev{'\n'}prx i  # Terminal UI</code></pre>
+            <pre><code>prx web  # Desktop app{'\n'}prx list{'\n'}prx 1 dev</code></pre>
           </div>
         </div>
         <div className={styles.quickStartCTA}>

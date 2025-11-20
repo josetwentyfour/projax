@@ -194,6 +194,9 @@ function displayLogo() {
   return `
   PROJAX ${packageJson.version}
   
+  Command line not your thing? Try our native desktop app:
+  → prx web
+  
   `;
   return `
 ╔═══════════════════════════════════════════════════════╗
@@ -221,11 +224,11 @@ program
   .version(packageJson.version)
   .addHelpText('beforeAll', displayLogo());
 
-// Interactive terminal UI command
+// Interactive terminal UI command (hidden - in beta)
 program
-  .command('prxi')
+  .command('prxi', { hidden: true })  // Hide from help output while in beta
   .alias('i')
-  .description('Launch interactive terminal UI')
+  .description('Launch interactive terminal UI (beta)')
   .action(async () => {
     try {
       await ensureAPIServerRunning(true);

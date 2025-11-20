@@ -2,6 +2,10 @@
 
 The PROJAX CLI (`prx`) is a full-featured command-line tool for managing local development projects. It provides commands for adding, listing, scanning, and running projects, along with advanced features like background execution and port conflict resolution.
 
+:::tip Not a Command Line Person?
+Prefer a visual interface? Try our **native desktop app** with `prx web`. It provides a beautiful GUI for managing all your projects without touching the command line! [Learn more about the Desktop app →](/docs/desktop/overview)
+:::
+
 ## Installation
 
 The CLI is installed globally when you install PROJAX:
@@ -35,9 +39,9 @@ After installation, the `prx` command is available globally.
 - `prx stop <pid>` - Stop a background process
 
 ### Interfaces
-- `prx prxi` / `prx i` - Launch interactive terminal UI
-- `prx web` - Start Desktop web interface
+- `prx web` - Start Desktop web interface (recommended)
 - `prx api` - Manage API server
+- `prx prxi` / `prx i` - Launch interactive terminal UI (beta)
 
 ### Advanced
 - `prx scan-ports [project]` - Scan for port information

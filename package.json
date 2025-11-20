@@ -1,6 +1,6 @@
 {
   "name": "projax-workspace",
-  "version": "3.3.10",
+  "version": "3.3.11",
   "description": "projax - Cross-platform project management dashboard with CLI and web interface",
   "author": "Jose Viscasillas <viscasillas@me.com>",
   "repostory": {
@@ -32,6 +32,7 @@
     "version:minor": "node scripts/bump-version.js minor",
     "version:major": "node scripts/bump-version.js major",
     "release": "node scripts/release.js",
+    "release:yes": "node scripts/release.js patch -y",
     "release:docsite": "cd packages/docsite && npm run deploy",
     "release:patch": "echo 'patch' | node scripts/release.js",
     "release:minor": "echo 'minor' | node scripts/release.js",

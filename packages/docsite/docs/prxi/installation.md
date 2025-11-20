@@ -1,5 +1,9 @@
 # Prxi Installation
 
+:::warning Beta Feature
+Prxi is currently in **beta**. Consider using the [Desktop app](/docs/desktop/overview) (`prx web`) for a more stable experience.
+:::
+
 Prxi is included in the projax installation.
 
 ## Installation

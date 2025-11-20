@@ -1,5 +1,9 @@
 # prx prxi / prx i
 
+:::warning Beta Feature
+This feature is currently in **beta**. For a more polished experience, try the [Desktop app](/docs/desktop/overview) with `prx web`.
+:::
+
 Launch the interactive terminal UI - a full-screen terminal interface for managing projects.
 
 ## Syntax

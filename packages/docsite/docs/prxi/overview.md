@@ -1,5 +1,9 @@
 # Prxi Overview
 
+:::warning Beta Feature
+Prxi is currently in **beta**. While functional, it may have bugs or rough edges. We recommend using the [Desktop app](/docs/desktop/overview) for the best experience. Feedback is welcome!
+:::
+
 prxi (pronounced "prixi") is the interactive Terminal UI (TUI) for PROJAX, built with Ink and React.
 
 ## Features
