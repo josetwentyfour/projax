@@ -124,7 +124,13 @@ describe('detector', () => {
     });
 
     it('should handle invalid JSON in package.json', () => {
-      mockedFs.existsSync.mockReturnValue(true);
+      const packageJson = {};
+
+      mockedFs.existsSync.mockImplementation((filePath: fs.PathLike) => {
+        const pathStr = filePath.toString();
+        // Return true only for package.json, false for all config files
+        return pathStr === packageJsonPath;
+      });
       mockedFs.readFileSync.mockReturnValue('invalid json');
 
       const result = detectTestFramework(projectPath);
