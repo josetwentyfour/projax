@@ -21,9 +21,9 @@ prx api --start
 ### Solution 3: Check Port Availability
 
 ```bash
-# Check if ports 3001-3010 are available
-lsof -i :3001  # macOS/Linux
-netstat -ano | findstr :3001  # Windows
+# Check if ports 38124-38133 are available
+lsof -i :38124  # macOS/Linux
+netstat -ano | findstr :38124  # Windows
 ```
 
 ## Problem: API Server Won't Start
@@ -32,7 +32,7 @@ netstat -ano | findstr :3001  # Windows
 
 ### Solution 1: Check Port Range
 
-All ports 3001-3010 may be in use:
+All ports 38124-38133 may be in use:
 
 ```bash
 # Check each port
@@ -45,7 +45,7 @@ done
 
 ```bash
 # Find and kill processes on ports
-lsof -ti:3001 | xargs kill -9  # macOS/Linux
+lsof -ti:38124 | xargs kill -9  # macOS/Linux
 ```
 
 ### Solution 3: Check Logs

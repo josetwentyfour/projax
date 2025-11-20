@@ -54,7 +54,7 @@ Running processes (3):
   PID 12346: Frontend App (start) - 2m 15s
     Command: npm start
     Logs: /Users/username/.projax/logs/process-1234567891-start.log
-    URLs: http://localhost:3001
+    URLs: http://localhost:38124
 ```
 
 ## Stopping Processes

@@ -11,7 +11,7 @@ This package provides a RESTful API server that manages project data using a JSO
 - RESTful API with Express
 - JSON database using lowdb
 - Automatic migration from SQLite to JSON
-- Port availability checking (tries ports 3001-3010)
+- Port availability checking (tries ports 38124-38133)
 - CORS enabled for cross-origin requests
 
 ## Installation
@@ -134,7 +134,7 @@ On first start, if a SQLite database exists at `~/.projax/dashboard.db`, the API
 
 ## Port Management
 
-The API server automatically finds an available port in the range 3001-3010. The selected port is written to `~/.projax/api-port.txt` for other components to discover.
+The API server automatically finds an available port in the range 38124-38133. The selected port is written to `~/.projax/api-port.txt` for other components to discover.
 
 ## Error Handling
 

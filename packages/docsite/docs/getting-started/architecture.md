@@ -31,7 +31,7 @@ The command-line interface provides a full-featured CLI for project management:
 REST API server built with Express:
 
 - RESTful endpoints for all operations
-- Automatic port discovery (3001-3010)
+- Automatic port discovery (38124-38133)
 - CORS enabled for cross-origin requests
 - SQLite to JSON migration support
 
@@ -198,7 +198,7 @@ When a port conflict is detected:
 ## API Server
 
 The API server:
-- Automatically finds available port (3001-3010)
+- Automatically finds available port (38124-38133)
 - Writes port to `~/.projax/api-port.txt` for discovery
 - Provides REST endpoints for all operations
 - Handles CORS for desktop app integration

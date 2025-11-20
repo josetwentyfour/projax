@@ -160,7 +160,7 @@
     "watch:extension": "node esbuild.js --watch",
     "watch:webview": "vite build --watch",
     "clean": "rm -rf dist",
-    "package": "npm run build && vsce package --out ../../release/ --no-dependencies",
+    "package": "npm run build && vsce package --out ../../release/ --no-dependencies --allow-missing-repository --allow-star-activation",
     "vscode:prepublish": "npm run build"
   },
   "devDependencies": {

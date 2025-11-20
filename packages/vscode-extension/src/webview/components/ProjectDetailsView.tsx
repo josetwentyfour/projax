@@ -24,7 +24,6 @@ interface RunningProcess {
 
 const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({ vscode }) => {
   const [project, setProject] = useState<Project | null>(null);
-  const [tests, setTests] = useState<Test[]>([]);
   const [ports, setPorts] = useState<ProjectPort[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [scripts, setScripts] = useState<{ type: string; scripts: Script[] } | null>(null);
@@ -35,7 +34,6 @@ const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({ vscode }) => {
   const [projectDescription, setProjectDescription] = useState('');
   const [editingTags, setEditingTags] = useState(false);
   const [tagInput, setTagInput] = useState('');
-  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -48,7 +46,6 @@ const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({ vscode }) => {
             setProject(message.project);
             setProjectName(message.project.name);
             setProjectDescription(message.project.description || '');
-            setTests(message.tests || []);
             setPorts(message.ports || []);
             setTags(message.tags || []);
             setScripts(message.scripts || null);
@@ -152,16 +149,6 @@ const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({ vscode }) => {
       command: 'openUrl',
       url,
     });
-  };
-
-  const handleScan = () => {
-    if (!project) return;
-    setScanning(true);
-    vscode.postMessage({
-      command: 'scanProject',
-      projectId: project.id,
-    });
-    setTimeout(() => setScanning(false), 2000);
   };
 
   const handleDelete = () => {
@@ -450,40 +437,6 @@ const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({ vscode }) => {
           )}
         </div>
       )}
-
-      <div className="tests-section">
-        <div className="section-header">
-          <h3>Test Files ({tests.length})</h3>
-          <button
-            onClick={handleScan}
-            disabled={scanning}
-            className="btn btn-primary btn-small"
-          >
-            {scanning ? 'Scanning...' : 'Scan'}
-          </button>
-        </div>
-        {tests.length === 0 ? (
-          <div className="no-tests">
-            <p>No test files found. Click "Scan" to search for test files.</p>
-          </div>
-        ) : (
-          <div className="tests-list">
-            {tests.map((test) => (
-              <div key={test.id} className="test-item">
-                <div className="test-file">
-                  <span className="test-path">{test.file_path}</span>
-                  {test.framework && (
-                    <span className="test-framework">{test.framework}</span>
-                  )}
-                </div>
-                {test.status && (
-                  <div className="test-status">{test.status}</div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       <div className="danger-zone">
         <h3>Danger Zone</h3>

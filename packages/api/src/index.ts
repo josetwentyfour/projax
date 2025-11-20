@@ -8,8 +8,8 @@ import { migrateFromSQLite } from './migrate';
 import apiRouter from './routes';
 
 const app: Express = express();
-const PORT_START = 3001;
-const PORT_END = 3010;
+const PORT_START = 38124;
+const PORT_END = 38133;
 
 // Middleware
 app.use(cors());

@@ -7,7 +7,7 @@ The PROJAX API is a RESTful API server built with Express that provides programm
 - RESTful API with Express
 - JSON database using lowdb
 - Automatic migration from SQLite to JSON
-- Port availability checking (tries ports 3001-3010)
+- Port availability checking (tries ports 38124-38133)
 - CORS enabled for cross-origin requests
 - Automatic port discovery and file-based port sharing
 
@@ -16,7 +16,7 @@ The PROJAX API is a RESTful API server built with Express that provides programm
 The API server:
 - Runs as a standalone Express server
 - Shares the same JSON database as the CLI (`~/.projax/data.json`)
-- Automatically finds an available port (3001-3010)
+- Automatically finds an available port (38124-38133)
 - Writes the selected port to `~/.projax/api-port.txt` for discovery
 - Provides REST endpoints for all operations
 
@@ -28,7 +28,7 @@ The API server runs on an automatically selected port. The port is:
 - Available via `prx api` command
 - Written to `~/.projax/api-port.txt`
 
-Default port range: `3001-3010`
+Default port range: `38124-38133`
 
 ## Authentication
 

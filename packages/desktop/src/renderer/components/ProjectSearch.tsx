@@ -3,8 +3,8 @@ import './ProjectSearch.css';
 
 type Project = any;
 
-export type FilterType = 'all' | 'name' | 'path' | 'ports' | 'testCount' | 'running';
-export type SortType = 'name-asc' | 'name-desc' | 'recent' | 'oldest' | 'tests' | 'running';
+export type FilterType = 'all' | 'name' | 'path' | 'ports' | 'running';
+export type SortType = 'name-asc' | 'name-desc' | 'recent' | 'oldest' | 'running';
 
 interface ProjectSearchProps {
   onSearchChange: (query: string, filterType: FilterType) => void;
@@ -54,7 +54,6 @@ const ProjectSearch: React.FC<ProjectSearchProps> = ({ onSearchChange, onSortCha
     { value: 'name-desc', label: 'Name (Z-A)' },
     { value: 'recent', label: 'Recently Scanned' },
     { value: 'oldest', label: 'Oldest First' },
-    { value: 'tests', label: 'Most Tests' },
     { value: 'running', label: 'Running First' },
   ];
 

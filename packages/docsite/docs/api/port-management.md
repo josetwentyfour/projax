@@ -4,7 +4,7 @@ The API server automatically manages port allocation and discovery.
 
 ## Port Discovery
 
-The API server automatically finds an available port in the range 3001-3010.
+The API server automatically finds an available port in the range 38124-38133.
 
 ### Port Selection Process
 
@@ -25,7 +25,7 @@ cat ~/.projax/api-port.txt
 
 ## Port Range
 
-Default port range: **3001-3010**
+Default port range: **38124-38133**
 
 This range is chosen to:
 - Avoid conflicts with common development ports (3000, 8080, etc.)
@@ -50,7 +50,7 @@ The Desktop app uses the same discovery method as the CLI.
 Verify the API is running on a specific port:
 
 ```bash
-curl http://localhost:3001/health
+curl http://localhost:38124/health
 ```
 
 Expected response:
@@ -72,10 +72,10 @@ If a port is already in use:
 1. **Find what's using the port:**
    ```bash
    # macOS/Linux
-   lsof -i :3001
+   lsof -i :38124
    
    # Windows
-   netstat -ano | findstr :3001
+   netstat -ano | findstr :38124
    ```
 
 2. **Kill the process** (if safe to do so)

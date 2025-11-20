@@ -81,7 +81,7 @@ npm run build
 ### API Server Not Starting
 
 The Desktop app automatically starts the API server. If it fails:
-1. Check port availability (3001-3010)
+1. Check port availability (38124-38133)
 2. Manually start API: `prx api --start`
 3. Check logs for errors
 

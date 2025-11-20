@@ -4,9 +4,9 @@ Complete reference for all API endpoints.
 
 ## Base URL
 
-All endpoints are prefixed with the base URL. The API runs on an automatically selected port (default: 3001-3010).
+All endpoints are prefixed with the base URL. The API runs on an automatically selected port (default: 38124-38133).
 
-Example: `http://localhost:3001/api`
+Example: `http://localhost:38124/api`
 
 ## Health Check
 
@@ -32,7 +32,7 @@ List all projects.
 
 **Example:**
 ```bash
-curl http://localhost:3001/api/projects
+curl http://localhost:38124/api/projects
 ```
 
 ### GET /api/projects/tags
@@ -43,7 +43,7 @@ Get all unique tags across all projects.
 
 **Example:**
 ```bash
-curl http://localhost:3001/api/projects/tags
+curl http://localhost:38124/api/projects/tags
 ```
 
 ### GET /api/projects/:id
@@ -57,7 +57,7 @@ Get project details by ID.
 
 **Example:**
 ```bash
-curl http://localhost:3001/api/projects/1
+curl http://localhost:38124/api/projects/1
 ```
 
 ### POST /api/projects
@@ -76,7 +76,7 @@ Add a new project.
 
 **Example:**
 ```bash
-curl -X POST http://localhost:3001/api/projects \
+curl -X POST http://localhost:38124/api/projects \
   -H "Content-Type: application/json" \
   -d '{"name": "My Project", "path": "/path/to/project"}'
 ```
@@ -108,7 +108,7 @@ All fields are optional. Only provided fields will be updated.
 
 **Example:**
 ```bash
-curl -X PUT http://localhost:3001/api/projects/1 \
+curl -X PUT http://localhost:38124/api/projects/1 \
   -H "Content-Type: application/json" \
   -d '{"name": "Updated Name"}'
 ```
@@ -124,7 +124,7 @@ Remove project.
 
 **Example:**
 ```bash
-curl -X DELETE http://localhost:3001/api/projects/1
+curl -X DELETE http://localhost:38124/api/projects/1
 ```
 
 ### GET /api/projects/:id/tests
@@ -138,7 +138,7 @@ Get tests for a project.
 
 **Example:**
 ```bash
-curl http://localhost:3001/api/projects/1/tests
+curl http://localhost:38124/api/projects/1/tests
 ```
 
 ### GET /api/projects/:id/ports
@@ -152,7 +152,7 @@ Get project ports.
 
 **Example:**
 ```bash
-curl http://localhost:3001/api/projects/1/ports
+curl http://localhost:38124/api/projects/1/ports
 ```
 
 ### POST /api/projects/:id/scan
@@ -173,7 +173,7 @@ Scan project for tests.
 
 **Example:**
 ```bash
-curl -X POST http://localhost:3001/api/projects/1/scan
+curl -X POST http://localhost:38124/api/projects/1/scan
 ```
 
 ### POST /api/projects/scan/all
@@ -191,7 +191,7 @@ Array<{
 
 **Example:**
 ```bash
-curl -X POST http://localhost:3001/api/projects/scan/all
+curl -X POST http://localhost:38124/api/projects/scan/all
 ```
 
 ## Settings
@@ -204,7 +204,7 @@ Get all settings.
 
 **Example:**
 ```bash
-curl http://localhost:3001/api/settings
+curl http://localhost:38124/api/settings
 ```
 
 ### PUT /api/settings/:key
@@ -231,7 +231,7 @@ Update a setting.
 
 **Example:**
 ```bash
-curl -X PUT http://localhost:3001/api/settings/my_setting \
+curl -X PUT http://localhost:38124/api/settings/my_setting \
   -H "Content-Type: application/json" \
   -d '{"value": "my value"}'
 ```

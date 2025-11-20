@@ -1,7 +1,7 @@
 .terminal-sidebar {
   display: flex;
   flex-direction: column;
-  width: 550px;
+  width: 100%;
   height: 100%;
   background: var(--bg-secondary);
   border-left: 1px solid var(--border-color);

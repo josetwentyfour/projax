@@ -99,7 +99,7 @@ prx --help
 ```
 
 **API Port:**
-The API server automatically finds an available port in the range 3001-3010. The selected port is displayed in:
+The API server automatically finds an available port in the range 38124-38133. The selected port is displayed in:
 - CLI welcome screen
 - Desktop app status bar
 - `prx api` command output
@@ -690,10 +690,10 @@ The Desktop web interface provides a visual way to manage your projects:
 
 3. Check if port is available:
    ```bash
-   # The API tries ports 3001-3010 automatically
+   # The API tries ports 38124-38133 automatically
    # Check which port is in use
-   lsof -i :3001  # macOS/Linux
-   netstat -ano | findstr :3001  # Windows
+   lsof -i :38124  # macOS/Linux
+   netstat -ano | findstr :38124  # Windows
    ```
 
 4. The API port is displayed in:
@@ -883,7 +883,7 @@ prx rename "Old Name" "New Name"
 
 ```bash
 # Run with arguments
-prx 1 dev --port 3001
+prx 1 dev --port 8001
 prx 2 test --watch --coverage
 
 # Run in background with arguments

@@ -54,13 +54,13 @@ Settings can be accessed via the API:
 
 ```bash
 # Get all settings
-curl http://localhost:3001/api/settings
+curl http://localhost:38124/api/settings
 
 # Get a specific setting
-curl http://localhost:3001/api/settings/theme
+curl http://localhost:38124/api/settings/theme
 
 # Update a setting
-curl -X PUT http://localhost:3001/api/settings/theme \
+curl -X PUT http://localhost:38124/api/settings/theme \
   -H "Content-Type: application/json" \
   -d '{"value": "dark"}'
 ```

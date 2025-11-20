@@ -41,7 +41,7 @@ Manually starts the API server if it's not running.
 ## API Server Details
 
 The API server:
-- Automatically finds an available port in the range 3001-3010
+- Automatically finds an available port in the range 38124-38133
 - Writes the port to `~/.projax/api-port.txt` for discovery
 - Provides REST endpoints for all operations
 - Enables CORS for cross-origin requests
@@ -57,7 +57,7 @@ The API server status is also shown in:
 Check if the API is running:
 
 ```bash
-curl http://localhost:3001/health
+curl http://localhost:38124/health
 ```
 
 Returns: `{ "status": "ok", "timestamp": "..." }`

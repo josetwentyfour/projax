@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 // Note: Renderer runs in browser context, types only
 type Project = any;
-type Test = any;
 import { ElectronAPI } from '../../main/preload';
 import ProjectUrls from './ProjectUrls';
 import './ProjectDetails.css';
 
 interface ProjectDetailsProps {
   project: Project;
-  tests: Test[];
+  tests: any[];
   onScan: () => void;
   scanning: boolean;
   onProjectUpdate?: (project: Project) => void;
@@ -18,9 +17,6 @@ interface ProjectDetailsProps {
 
 const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   project,
-  tests,
-  onScan,
-  scanning,
   onProjectUpdate,
   onRemoveProject,
   onOpenTerminal,
@@ -361,11 +357,9 @@ const loadScripts = async () => {
                 onClick={() => setEditingDescription(true)}
                 title="Click to edit description"
               >
-                {project.description || project.path}
+                {project.description || 'Click to add a description...'}
               </p>
-              {project.description && (
-          <p className="project-path">{project.path}</p>
-              )}
+              <p className="project-path">{project.path}</p>
             </div>
           )}
         </div>
@@ -591,40 +585,6 @@ const loadScripts = async () => {
           )}
         </div>
       )}
-
-      <div className="tests-section">
-        <div className="section-header">
-          <h3>Test Files ({tests.length})</h3>
-          <button
-            onClick={onScan}
-            disabled={scanning}
-            className="btn btn-primary btn-small"
-          >
-            {scanning ? 'Scanning...' : 'Scan'}
-          </button>
-        </div>
-        {tests.length === 0 ? (
-          <div className="no-tests">
-            <p>No test files found. Click "Scan" to search for test files.</p>
-          </div>
-        ) : (
-          <div className="tests-list">
-            {tests.map((test) => (
-              <div key={test.id} className="test-item">
-                <div className="test-file">
-                  <span className="test-path">{test.file_path}</span>
-                  {test.framework && (
-                    <span className="test-framework">{test.framework}</span>
-                  )}
-                </div>
-                {test.status && (
-                  <div className="test-status">{test.status}</div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       <div className="jenkins-placeholder">
         <h3>Jenkins Integration</h3>

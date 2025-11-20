@@ -344,13 +344,11 @@ const ProjectDetailsComponent: React.FC<ProjectDetailsProps> = ({
   const { focus } = useFocus({ id: 'projectDetails' });
   const [scripts, setScripts] = useState<any>(null);
   const [ports, setPorts] = useState<any[]>([]);
-  const [tests, setTests] = useState<any[]>([]);
 
   useEffect(() => {
     if (!project) {
       setScripts(null);
       setPorts([]);
-      setTests([]);
       return;
     }
 
@@ -369,15 +367,6 @@ const ProjectDetailsComponent: React.FC<ProjectDetailsProps> = ({
       setPorts(projectPorts);
     } catch (error) {
       setPorts([]);
-    }
-
-    // Load tests
-    try {
-      const db = getDatabaseManager();
-      const projectTests = db.getTestsByProject(project.id);
-      setTests(projectTests);
-    } catch (error) {
-      setTests([]);
     }
   }, [project]);
 
@@ -401,13 +390,6 @@ const ProjectDetailsComponent: React.FC<ProjectDetailsProps> = ({
 
   // Get running processes for this project
   const projectProcesses = runningProcesses.filter((p: any) => p.projectPath === project.path);
-
-  // Count tests by framework
-  const testsByFramework = tests.reduce((acc: any, test: any) => {
-    const framework = test.framework || 'unknown';
-    acc[framework] = (acc[framework] || 0) + 1;
-    return acc;
-  }, {});
 
   // Build content lines for virtual scrolling
   const contentLines: React.ReactNode[] = [];
@@ -479,10 +461,6 @@ const ProjectDetailsComponent: React.FC<ProjectDetailsProps> = ({
   // Stats
   contentLines.push(
     <Box key="stats">
-        <Text>Tests: <Text color={colors.accentCyan}>{tests.length}</Text></Text>
-        <Text> | </Text>
-        <Text>Frameworks: <Text color={colors.accentCyan}>{Object.keys(testsByFramework).length}</Text></Text>
-        <Text> | </Text>
         <Text>Ports: <Text color={colors.accentCyan}>{ports.length}</Text></Text>
         <Text> | </Text>
         <Text>Scripts: <Text color={colors.accentCyan}>{scripts?.scripts?.size || 0}</Text></Text>
@@ -576,26 +554,6 @@ const ProjectDetailsComponent: React.FC<ProjectDetailsProps> = ({
       );
     }
     contentLines.push(<Text key="spacer6"> </Text>);
-  }
-
-  // Test Files
-  if (tests.length > 0) {
-    contentLines.push(
-      <Text key="tests-header" bold>
-            Test Files (<Text color={colors.accentCyan}>{tests.length}</Text>):
-          </Text>
-    );
-    Object.entries(testsByFramework).forEach(([framework, count]) => {
-      contentLines.push(
-        <Text key={`test-${framework}`}>
-              {'  '}
-              <Text color={colors.accentPurple}>{framework}</Text>
-              {': '}
-              <Text color={colors.textSecondary}>{count as number}</Text>
-            </Text>
-      );
-    });
-    contentLines.push(<Text key="spacer7"> </Text>);
   }
 
   // Calculate visible range for virtual scrolling

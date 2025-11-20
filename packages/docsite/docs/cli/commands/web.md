@@ -46,7 +46,7 @@ The Desktop interface provides:
 ## API Server
 
 The API server is automatically started when you launch the Desktop app. It:
-- Finds an available port (3001-3010)
+- Finds an available port (38124-38133)
 - Displays the port in the status bar
 - Provides REST endpoints for the Desktop app
 

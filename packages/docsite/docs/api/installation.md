@@ -54,7 +54,7 @@ npm run dev:api
 
 ## Port Management
 
-The API server automatically finds an available port in the range 3001-3010. The selected port is:
+The API server automatically finds an available port in the range 38124-38133. The selected port is:
 
 - Written to `~/.projax/api-port.txt` for discovery
 - Displayed in the console when starting
@@ -70,7 +70,7 @@ Verify the API is running:
 prx api
 
 # Or check health endpoint
-curl http://localhost:3001/health
+curl http://localhost:38124/health
 ```
 
 Expected response:

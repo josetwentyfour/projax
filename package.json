@@ -44,7 +44,9 @@
     "release:docsite": "cd packages/docsite && npm run deploy",
     "release:patch": "echo 'patch' | node scripts/release.js",
     "release:minor": "echo 'minor' | node scripts/release.js",
-    "release:major": "echo 'major' | node scripts/release.js"
+    "release:major": "echo 'major' | node scripts/release.js",
+    "use:local": "sudo uninstall -g projax && npm link projax",
+    "use:npm": "sudo uninstall -g projax && npm install -g projax"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

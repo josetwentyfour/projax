@@ -703,7 +703,7 @@ Update a setting.
 
 #### Port Management
 
-- Automatically finds available port in range 3001-3010
+- Automatically finds available port in range 38124-38133
 - Writes selected port to `~/.projax/api-port.txt`
 - Other components read port from file
 - Health check endpoint for status verification

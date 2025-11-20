@@ -75,7 +75,7 @@ ls -la ~/.projax/
 
 ## Error: "Port range exhausted"
 
-**Cause:** All ports 3001-3010 are in use.
+**Cause:** All ports 38124-38133 are in use.
 
 ### Solution 1: Free Up Ports
 

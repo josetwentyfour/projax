@@ -37,7 +37,7 @@
 #### API Server
 - ✅ Auto-starts with desktop app
 - ✅ REST API for project data
-- ✅ Auto-port selection (3001-3010)
+- ✅ Auto-port selection (38124-38133)
 
 ---
 

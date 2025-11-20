@@ -52,7 +52,7 @@ prx api
 ```
 
 **API Port:**
-The API server automatically finds an available port in the range 3001-3010. The selected port is displayed in:
+The API server automatically finds an available port in the range 38124-38133. The selected port is displayed in:
 - CLI welcome screen
 - Desktop app status bar
 - `prx api` command output

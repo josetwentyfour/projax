@@ -118,7 +118,7 @@ All error responses follow this format:
 ```typescript
 async function addProject(name: string, path: string) {
   try {
-    const response = await fetch('http://localhost:3001/api/projects', {
+    const response = await fetch('http://localhost:38124/api/projects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, path })
@@ -141,7 +141,7 @@ async function addProject(name: string, path: string) {
 
 ```bash
 # Check for errors
-response=$(curl -s -w "\n%{http_code}" http://localhost:3001/api/projects/999)
+response=$(curl -s -w "\n%{http_code}" http://localhost:38124/api/projects/999)
 http_code=$(echo "$response" | tail -n1)
 body=$(echo "$response" | head -n-1)
 

@@ -182,6 +182,10 @@ app.on('before-quit', () => {
 
 // IPC Handlers
 
+ipcMain.handle('get-app-version', async (): Promise<string> => {
+  return app.getVersion();
+});
+
 ipcMain.handle('get-projects', async (): Promise<Project[]> => {
   try {
     console.log('Getting projects from database...');

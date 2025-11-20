@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 // Note: Renderer runs in browser context, types only
 // The actual data comes from IPC
 type Project = any;
-type Test = any;
 import { ElectronAPI } from '../main/preload';
 import { Rnd } from 'react-rnd';
 import ProjectList from './components/ProjectList';
@@ -24,10 +23,8 @@ declare global {
 function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [tests, setTests] = useState<Test[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [scanning, setScanning] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [sortType, setSortType] = useState<SortType>('name-asc');
@@ -36,6 +33,7 @@ function App() {
   const [keyboardFocusedIndex, setKeyboardFocusedIndex] = useState<number>(-1);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const [sidebarWidth, setSidebarWidth] = useState<number>(280);
+  const [terminalWidth, setTerminalWidth] = useState<number>(550);
   const [terminalProcess, setTerminalProcess] = useState<{
     pid: number;
     scriptName: string;
@@ -53,14 +51,6 @@ function App() {
     
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-    if (selectedProject) {
-      loadTests(selectedProject.id);
-    } else {
-      setTests([]);
-    }
-  }, [selectedProject]);
 
 
   const loadProjects = async () => {
@@ -80,15 +70,6 @@ function App() {
     }
   };
 
-  const loadTests = async (projectId: number) => {
-    try {
-      const testList = await window.electronAPI.getTests(projectId);
-      setTests(testList);
-    } catch (error) {
-      console.error('Error loading tests:', error);
-    }
-  };
-
   const loadRunningProcesses = async () => {
     try {
       const processes = await window.electronAPI.getRunningProcesses();
@@ -105,10 +86,8 @@ function App() {
       setShowAddModal(false);
       
       // Auto-scan the new project
-      setScanning(true);
       await window.electronAPI.scanProject(project.id);
       await loadProjects();
-      setScanning(false);
     } catch (error) {
       console.error('Error adding project:', error);
       alert(error instanceof Error ? error.message : 'Failed to add project');
@@ -132,38 +111,6 @@ function App() {
     }
   };
 
-  const handleScanProject = async (projectId: number) => {
-    try {
-      setScanning(true);
-      await window.electronAPI.scanProject(projectId);
-      await loadProjects();
-      if (selectedProject?.id === projectId) {
-        await loadTests(projectId);
-      }
-    } catch (error) {
-      console.error('Error scanning project:', error);
-      alert('Failed to scan project');
-    } finally {
-      setScanning(false);
-    }
-  };
-
-  const handleScanAll = async () => {
-    try {
-      setScanning(true);
-      await window.electronAPI.scanAllProjects();
-      await loadProjects();
-      if (selectedProject) {
-        await loadTests(selectedProject.id);
-      }
-    } catch (error) {
-      console.error('Error scanning all projects:', error);
-      alert('Failed to scan projects');
-    } finally {
-      setScanning(false);
-    }
-  };
-
   const handleSearchChange = (query: string, type: FilterType) => {
     setSearchQuery(query);
     setFilterType(type);
@@ -184,10 +131,6 @@ function App() {
         case 'ports':
           // This will be enhanced when we load ports data
           return false; // Placeholder - will be enhanced
-        case 'testCount':
-          // This will be enhanced when we have test counts
-          const testCount = tests.filter((t: Test) => t.project_id === project.id).length;
-          return testCount.toString().includes(query);
         case 'running':
           // This will be enhanced when we have running status
           return query === 'running' || query === 'not running';
@@ -217,13 +160,6 @@ function App() {
       case 'oldest':
         sorted.sort((a, b) => a.created_at - b.created_at);
         break;
-      case 'tests':
-        sorted.sort((a, b) => {
-          const aTests = tests.filter((t: Test) => t.project_id === a.id).length;
-          const bTests = tests.filter((t: Test) => t.project_id === b.id).length;
-          return bTests - aTests;
-        });
-        break;
       case 'running':
         sorted.sort((a, b) => {
           const aRunning = runningProcesses.filter((p: any) => p.projectPath === a.path).length;
@@ -234,7 +170,7 @@ function App() {
     }
 
     return sorted;
-  }, [projects, searchQuery, filterType, sortType, tests, runningProcesses]);
+  }, [projects, searchQuery, filterType, sortType, runningProcesses]);
 
   // Keyboard shortcuts and navigation
   useEffect(() => {
@@ -386,9 +322,9 @@ function App() {
           {selectedProject ? (
             <ProjectDetails
               project={selectedProject}
-              tests={tests}
-              onScan={() => handleScanProject(selectedProject.id)}
-              scanning={scanning}
+              tests={[]}
+              onScan={() => {}}
+              scanning={false}
               onProjectUpdate={(updated) => {
                 setSelectedProject(updated);
                 loadProjects();
@@ -405,12 +341,37 @@ function App() {
         </main>
 
         {terminalProcess && (
-          <Terminal
-            pid={terminalProcess.pid}
-            scriptName={terminalProcess.scriptName}
-            projectName={terminalProcess.projectName}
-            onClose={handleCloseTerminal}
-          />
+          <Rnd
+            size={{ width: terminalWidth, height: '100%' }}
+            minWidth={350}
+            maxWidth={800}
+            disableDragging={true}
+            enableResizing={{ left: true }}
+            onResizeStop={(e, direction, ref, d) => {
+              const newWidth = terminalWidth - d.width;
+              setTerminalWidth(Math.max(350, Math.min(800, newWidth)));
+            }}
+            style={{
+              position: 'relative',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+            resizeHandleStyles={{
+              left: {
+                width: '4px',
+                left: '-2px',
+                cursor: 'col-resize',
+                backgroundColor: 'transparent',
+              },
+            }}
+          >
+            <Terminal
+              pid={terminalProcess.pid}
+              scriptName={terminalProcess.scriptName}
+              projectName={terminalProcess.projectName}
+              onClose={handleCloseTerminal}
+            />
+          </Rnd>
         )}
       </div>
 
