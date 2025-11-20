@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.8.1">
 <title data-rh="true">API Overview | PROJAX</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://projax.dev/img/projax-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://projax.dev/img/projax-social-card.jpg"><meta data-rh="true" property="og:url" content="https://projax.dev/docs/api/overview"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="API Overview | PROJAX"><meta data-rh="true" name="description" content="The PROJAX API is a RESTful API server built with Express that provides programmatic access to all PROJAX operations. It uses a JSON database (lowdb) for storage and automatically handles port discovery and CORS."><meta data-rh="true" property="og:description" content="The PROJAX API is a RESTful API server built with Express that provides programmatic access to all PROJAX operations. It uses a JSON database (lowdb) for storage and automatically handles port discovery and CORS."><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://projax.dev/docs/api/overview"><link data-rh="true" rel="alternate" href="https://projax.dev/docs/api/overview" hreflang="en"><link data-rh="true" rel="alternate" href="https://projax.dev/docs/api/overview" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"API Overview","item":"https://projax.dev/docs/api/overview"}]}</script><link rel="stylesheet" href="/assets/css/styles.d6112061.css">
-<script src="/assets/js/runtime~main.ff322dde.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.81119d43.js" defer="defer"></script>
 <script src="/assets/js/main.63f990a7.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
@@ -18,7 +18,7 @@
 <li>RESTful API with Express</li>
 <li>JSON database using lowdb</li>
 <li>Automatic migration from SQLite to JSON</li>
-<li>Port availability checking (tries ports 3001-3010)</li>
+<li>Port availability checking (tries ports 38124-38133)</li>
 <li>CORS enabled for cross-origin requests</li>
 <li>Automatic port discovery and file-based port sharing</li>
 </ul>
@@ -27,7 +27,7 @@
 <ul>
 <li>Runs as a standalone Express server</li>
 <li>Shares the same JSON database as the CLI (<code>~/.projax/data.json</code>)</li>
-<li>Automatically finds an available port (3001-3010)</li>
+<li>Automatically finds an available port (38124-38133)</li>
 <li>Writes the selected port to <code>~/.projax/api-port.txt</code> for discovery</li>
 <li>Provides REST endpoints for all operations</li>
 </ul>
@@ -39,7 +39,7 @@
 <li>Available via <code>prx api</code> command</li>
 <li>Written to <code>~/.projax/api-port.txt</code></li>
 </ul>
-<p>Default port range: <code>3001-3010</code></p>
+<p>Default port range: <code>38124-38133</code></p>
 <h2 class="anchor anchorWithStickyNavbar_fF9Z" id="authentication">Authentication<a href="#authentication" class="hash-link" aria-label="Direct link to Authentication" title="Direct link to Authentication">​</a></h2>
 <p>Currently, the API does not require authentication as it&#x27;s designed for local development use. All endpoints are accessible without authentication.</p>
 <h2 class="anchor anchorWithStickyNavbar_fF9Z" id="response-format">Response Format<a href="#response-format" class="hash-link" aria-label="Direct link to Response Format" title="Direct link to Response Format">​</a></h2>

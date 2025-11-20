@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.8.1">
 <title data-rh="true">prx api | PROJAX</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://projax.dev/img/projax-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://projax.dev/img/projax-social-card.jpg"><meta data-rh="true" property="og:url" content="https://projax.dev/docs/cli/commands/api"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="prx api | PROJAX"><meta data-rh="true" name="description" content="Show API server information and manage the API server."><meta data-rh="true" property="og:description" content="Show API server information and manage the API server."><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://projax.dev/docs/cli/commands/api"><link data-rh="true" rel="alternate" href="https://projax.dev/docs/cli/commands/api" hreflang="en"><link data-rh="true" rel="alternate" href="https://projax.dev/docs/cli/commands/api" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"prx api","item":"https://projax.dev/docs/cli/commands/api"}]}</script><link rel="stylesheet" href="/assets/css/styles.d6112061.css">
-<script src="/assets/js/runtime~main.ff322dde.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.81119d43.js" defer="defer"></script>
 <script src="/assets/js/main.63f990a7.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
@@ -37,7 +37,7 @@
 <h2 class="anchor anchorWithStickyNavbar_fF9Z" id="api-server-details">API Server Details<a href="#api-server-details" class="hash-link" aria-label="Direct link to API Server Details" title="Direct link to API Server Details">​</a></h2>
 <p>The API server:</p>
 <ul>
-<li>Automatically finds an available port in the range 3001-3010</li>
+<li>Automatically finds an available port in the range 38124-38133</li>
 <li>Writes the port to <code>~/.projax/api-port.txt</code> for discovery</li>
 <li>Provides REST endpoints for all operations</li>
 <li>Enables CORS for cross-origin requests</li>
@@ -50,7 +50,7 @@
 </ul>
 <h2 class="anchor anchorWithStickyNavbar_fF9Z" id="health-check">Health Check<a href="#health-check" class="hash-link" aria-label="Direct link to Health Check" title="Direct link to Health Check">​</a></h2>
 <p>Check if the API is running:</p>
-<div class="language-bash codeBlockContainer_ZGJx theme-code-block" style="--prism-color:#F8F8F2;--prism-background-color:#282A36"><div class="codeBlockContent_kX1v"><pre tabindex="0" class="prism-code language-bash codeBlock_TAPP thin-scrollbar" style="color:#F8F8F2;background-color:#282A36"><code class="codeBlockLines_AdAo"><span class="token-line" style="color:#F8F8F2"><span class="token function" style="color:rgb(80, 250, 123)">curl</span><span class="token plain"> http://localhost:3001/health</span><br></span></code></pre></div></div>
+<div class="language-bash codeBlockContainer_ZGJx theme-code-block" style="--prism-color:#F8F8F2;--prism-background-color:#282A36"><div class="codeBlockContent_kX1v"><pre tabindex="0" class="prism-code language-bash codeBlock_TAPP thin-scrollbar" style="color:#F8F8F2;background-color:#282A36"><code class="codeBlockLines_AdAo"><span class="token-line" style="color:#F8F8F2"><span class="token function" style="color:rgb(80, 250, 123)">curl</span><span class="token plain"> http://localhost:38124/health</span><br></span></code></pre></div></div>
 <p>Returns: <code>{ &quot;status&quot;: &quot;ok&quot;, &quot;timestamp&quot;: &quot;...&quot; }</code></p>
 <h2 class="anchor anchorWithStickyNavbar_fF9Z" id="related-commands">Related Commands<a href="#related-commands" class="hash-link" aria-label="Direct link to Related Commands" title="Direct link to Related Commands">​</a></h2>
 <ul>
