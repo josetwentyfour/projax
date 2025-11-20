@@ -31,6 +31,18 @@ const Settings: React.FC<SettingsProps> = ({ onClose }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // ESC key to close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   useEffect(() => {
     loadSettings();
   }, []);

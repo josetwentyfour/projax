@@ -338,38 +338,55 @@ function App() {
         </main>
 
         {terminalProcess && (
-          <Rnd
-            size={{ width: terminalWidth, height: '100%' }}
-            minWidth={350}
-            maxWidth={800}
-            disableDragging={true}
-            enableResizing={{ left: true }}
-            onResize={(e, direction, ref, d) => {
-              const newWidth = terminalWidth - d.width;
-              setTerminalWidth(Math.max(350, Math.min(800, newWidth)));
-            }}
-            style={{
+          <div 
+            style={{ 
+              width: `${terminalWidth}px`, 
+              minWidth: '350px',
+              maxWidth: '800px',
+              height: '100%',
               position: 'relative',
+              flexShrink: 0,
               display: 'flex',
               flexDirection: 'column',
-              flexShrink: 0,
-            }}
-            resizeHandleStyles={{
-              left: {
-                width: '4px',
-                left: '-2px',
-                cursor: 'col-resize',
-                backgroundColor: 'transparent',
-              },
             }}
           >
+            <div
+              style={{
+                position: 'absolute',
+                left: '-2px',
+                top: 0,
+                bottom: 0,
+                width: '4px',
+                cursor: 'col-resize',
+                zIndex: 10,
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const startX = e.clientX;
+                const startWidth = terminalWidth;
+
+                const handleMouseMove = (e: MouseEvent) => {
+                  const delta = startX - e.clientX;
+                  const newWidth = Math.max(350, Math.min(800, startWidth + delta));
+                  setTerminalWidth(newWidth);
+                };
+
+                const handleMouseUp = () => {
+                  document.removeEventListener('mousemove', handleMouseMove);
+                  document.removeEventListener('mouseup', handleMouseUp);
+                };
+
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+              }}
+            />
             <Terminal
               pid={terminalProcess.pid}
               scriptName={terminalProcess.scriptName}
               projectName={terminalProcess.projectName}
               onClose={handleCloseTerminal}
             />
-          </Rnd>
+          </div>
         )}
       </div>
 
