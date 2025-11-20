@@ -84,20 +84,27 @@ const Terminal: React.FC<TerminalProps> = ({ pid, scriptName, projectName, onClo
   return (
     <div className="terminal-sidebar">
       <div className="terminal-header">
-        <div className="terminal-title">
-          <span className="terminal-icon">▶</span>
-          <div className="terminal-info">
-            <span className="terminal-script">{scriptName}</span>
-            <span className="terminal-project">{projectName}</span>
+        <div className="terminal-title-row">
+          <div className="terminal-title-content">
+            <span className={`terminal-status-indicator ${isConnected ? 'running' : 'stopped'}`}>
+              {isConnected ? '●' : '○'}
+            </span>
+            <div className="terminal-info">
+              <span className="terminal-script">{scriptName}</span>
+              <span className="terminal-project">{projectName}</span>
+            </div>
           </div>
-          <span className={`terminal-status ${isConnected ? 'running' : 'stopped'}`}>
-            {isConnected ? '● Running' : '○ Stopped'}
-          </span>
+          <div className="terminal-meta">
+            <span className={`terminal-status-badge ${isConnected ? 'running' : 'stopped'}`}>
+              {isConnected ? 'Running' : 'Stopped'}
+            </span>
+            <span className="terminal-pid">PID: {pid}</span>
+          </div>
         </div>
-        <div className="terminal-actions">
+        <div className="terminal-toolbar">
           <button
             onClick={handleClear}
-            className="terminal-btn"
+            className="btn btn-secondary btn-tiny"
             title="Clear output"
           >
             Clear
@@ -105,18 +112,18 @@ const Terminal: React.FC<TerminalProps> = ({ pid, scriptName, projectName, onClo
           {!autoScroll && (
             <button
               onClick={handleScrollToBottom}
-              className="terminal-btn terminal-btn-scroll"
+              className="btn btn-secondary btn-tiny"
               title="Scroll to bottom"
             >
-              ↓
+              ↓ Bottom
             </button>
           )}
           <button
             onClick={onClose}
-            className="terminal-btn terminal-btn-close"
+            className="btn btn-danger btn-tiny"
             title="Close terminal"
           >
-            ✕
+            Close
           </button>
         </div>
       </div>
@@ -126,7 +133,11 @@ const Terminal: React.FC<TerminalProps> = ({ pid, scriptName, projectName, onClo
         onScroll={handleScroll}
       >
         {output.length === 0 ? (
-          <div className="terminal-empty">Waiting for output from PID {pid}...</div>
+          <div className="terminal-empty">
+            <div className="terminal-empty-icon">⌘</div>
+            <div className="terminal-empty-text">Waiting for output...</div>
+            <div className="terminal-empty-hint">Process PID {pid}</div>
+          </div>
         ) : (
           output.map((line, index) => (
             <div key={index} className="terminal-line">
