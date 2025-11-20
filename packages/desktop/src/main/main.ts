@@ -239,6 +239,16 @@ ipcMain.handle('get-tests', async (_, projectId: number): Promise<Test[]> => {
   }
 });
 
+ipcMain.handle('get-latest-test-result', async (_, projectId: number) => {
+  try {
+    const db = getDatabaseManager();
+    return db.getLatestTestResult(projectId);
+  } catch (error) {
+    console.error('Error getting latest test result:', error);
+    return null;
+  }
+});
+
 ipcMain.handle('select-directory', async (): Promise<string | null> => {
   if (!mainWindow) return null;
   

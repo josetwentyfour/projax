@@ -112,13 +112,8 @@ const loadScripts = async () => {
   const loadLatestTestResult = async () => {
     try {
       setLoadingTestResult(true);
-      const response = await fetch(`http://localhost:38124/api/projects/${project.id}/test-results/latest`);
-      if (response.ok) {
-        const result = await response.json();
-        setLatestTestResult(result);
-      } else if (response.status === 404) {
-        setLatestTestResult(null);
-      }
+      const result = await window.electronAPI.getLatestTestResult(project.id);
+      setLatestTestResult(result);
     } catch (error) {
       // Silently fail - test results are optional
       setLatestTestResult(null);

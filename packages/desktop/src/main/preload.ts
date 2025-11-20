@@ -80,6 +80,7 @@ export interface ElectronAPI {
   removeProcessOutputListener: (callback: (event: any, data: { pid: number; data: string }) => void) => void;
   removeProcessExitListener: (callback: (event: any, data: { pid: number; code: number }) => void) => void;
   getAppVersion: () => Promise<string>;
+  getLatestTestResult: (projectId: number) => Promise<any | null>;
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -116,5 +117,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeProcessOutputListener: (callback: any) => ipcRenderer.removeListener('process-output', callback),
   removeProcessExitListener: (callback: any) => ipcRenderer.removeListener('process-exit', callback),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getLatestTestResult: (projectId: number) => ipcRenderer.invoke('get-latest-test-result', projectId),
 } as ElectronAPI);
 
