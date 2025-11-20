@@ -103,17 +103,17 @@ async function main() {
   console.log('\n🧪 Testing commands with npm link...');
   try {
     execSync('cd packages/cli && npm link', { stdio: 'inherit' });
-    
-    console.log('\n  Testing core commands:');
-    exec('prx --version', '  - prx --version');
-    exec('prx list', '  - prx list');
-    exec('prx api', '  - prx api');
-    exec('prx web --help', '  - prx web --help');
-    exec('prx docs --help', '  - prx docs --help');
-    
-    console.log('\n  Testing prxi (Terminal UI):');
-    console.log('  ℹ️  Skipping interactive test for prx i (requires TTY)');
-    console.log('  ✓ All commands tested successfully\n');
+  
+  console.log('\n  Testing core commands:');
+  exec('prx --version', '  - prx --version');
+  exec('prx list', '  - prx list');
+  exec('prx api', '  - prx api');
+  exec('prx web --help', '  - prx web --help');
+  exec('prx docs --help', '  - prx docs --help');
+  
+  console.log('\n  Testing prxi (Terminal UI):');
+  console.log('  ℹ️  Skipping interactive test for prx i (requires TTY)');
+  console.log('  ✓ All commands tested successfully\n');
   } catch (error) {
     console.log('\n  ⚠️  npm link failed (permission denied or already linked)');
     console.log('  ℹ️  Skipping command tests - commands will be tested after npm publish');

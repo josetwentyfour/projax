@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as http from 'http';
 import { pathToFileURL } from 'url';
+import { execSync } from 'child_process';
 import {
   getDatabaseManager,
   getAllProjects,
@@ -20,6 +21,245 @@ import { scanProjectPorts, shouldRescanPorts } from './port-scanner';
 
 // Read version from package.json
 const packageJson = require('../package.json');
+
+// Function to create application launcher alias
+async function handleAddApplicationAlias() {
+  const platform = os.platform();
+  
+  try {
+    switch (platform) {
+      case 'darwin': // macOS
+        await createMacOSAppAlias();
+        break;
+      case 'linux':
+        await createLinuxAppAlias();
+        break;
+      case 'win32': // Windows
+        await createWindowsAppAlias();
+        break;
+      default:
+        console.error(`Unsupported platform: ${platform}`);
+        process.exit(1);
+    }
+  } catch (error) {
+    console.error('Error creating application alias:', error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+// Create macOS application alias
+async function createMacOSAppAlias() {
+  const appName = 'Projax';
+  const appPath = `/Applications/${appName}.app`;
+  
+  // Get the path to the prx command
+  let prxPath: string;
+  try {
+    prxPath = execSync('which prx', { encoding: 'utf-8' }).trim();
+  } catch (error) {
+    console.error('Error: prx command not found. Please ensure projax is installed globally.');
+    process.exit(1);
+  }
+  
+  if (!prxPath) {
+    console.error('Error: prx command not found. Please ensure projax is installed globally.');
+    process.exit(1);
+  }
+  
+  // Create .app bundle structure
+  const contentsDir = path.join(appPath, 'Contents');
+  const macOSDir = path.join(contentsDir, 'MacOS');
+  const resourcesDir = path.join(contentsDir, 'Resources');
+  
+  console.log(`\n📦 Creating ${appName}.app in /Applications...`);
+  
+  // Create directories
+  fs.mkdirSync(macOSDir, { recursive: true });
+  fs.mkdirSync(resourcesDir, { recursive: true });
+  
+  // Create Info.plist
+  const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>projax-launcher</string>
+    <key>CFBundleIdentifier</key>
+    <string>dev.projax.app</string>
+    <key>CFBundleName</key>
+    <string>${appName}</string>
+    <key>CFBundleDisplayName</key>
+    <string>${appName}</string>
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleSignature</key>
+    <string>????</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.13</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>`;
+  
+  fs.writeFileSync(path.join(contentsDir, 'Info.plist'), infoPlist);
+  
+  // Create launcher script
+  const launcherScript = `#!/bin/bash
+# Projax Application Launcher
+# This launches the Projax UI
+
+# Ensure we have the right PATH
+export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.nvm/versions/node/$(ls -1 $HOME/.nvm/versions/node | tail -1)/bin:$PATH"
+
+# Find prx command
+PRX_CMD="${prxPath}"
+
+# If not found, try to find it in common locations
+if [ ! -x "$PRX_CMD" ]; then
+    for dir in /usr/local/bin /opt/homebrew/bin $HOME/.nvm/versions/node/*/bin; do
+        if [ -x "$dir/prx" ]; then
+            PRX_CMD="$dir/prx"
+            break
+        fi
+    done
+fi
+
+# Launch Projax UI
+if [ -x "$PRX_CMD" ]; then
+    "$PRX_CMD" ui 2>&1 | logger -t Projax &
+else
+    osascript -e 'display alert "Projax Error" message "Could not find prx command. Please ensure projax is installed: npm install -g projax"'
+fi
+`;
+  
+  const launcherPath = path.join(macOSDir, 'projax-launcher');
+  fs.writeFileSync(launcherPath, launcherScript);
+  fs.chmodSync(launcherPath, 0o755);
+  
+  console.log(`✓ Created ${appName}.app`);
+  console.log(`✓ Application launcher installed at: ${appPath}`);
+  console.log(`\n🎉 You can now launch Projax from:`);
+  console.log(`   - Spotlight (Cmd+Space, type "${appName}")`);
+  console.log(`   - Launchpad`);
+  console.log(`   - Applications folder`);
+  console.log(`\n💡 Tip: You can also drag ${appName}.app to your Dock for quick access!`);
+}
+
+// Create Linux application alias
+async function createLinuxAppAlias() {
+  const appName = 'Projax';
+  const desktopFile = path.join(os.homedir(), '.local', 'share', 'applications', 'projax.desktop');
+  
+  // Get the path to the prx command
+  let prxPath: string;
+  try {
+    prxPath = execSync('which prx', { encoding: 'utf-8' }).trim();
+  } catch (error) {
+    console.error('Error: prx command not found. Please ensure projax is installed globally.');
+    process.exit(1);
+  }
+  
+  console.log(`\n📦 Creating ${appName} desktop entry...`);
+  
+  // Ensure directory exists
+  const applicationsDir = path.dirname(desktopFile);
+  fs.mkdirSync(applicationsDir, { recursive: true });
+  
+  // Create .desktop file
+  const desktopContent = `[Desktop Entry]
+Version=1.0
+Type=Application
+Name=${appName}
+Comment=Project Management Dashboard
+Exec=${prxPath} ui
+Terminal=false
+Categories=Development;Utility;
+Keywords=project;dashboard;dev;
+StartupNotify=true
+`;
+  
+  fs.writeFileSync(desktopFile, desktopContent);
+  fs.chmodSync(desktopFile, 0o755);
+  
+  // Update desktop database
+  try {
+    execSync('update-desktop-database ~/.local/share/applications', { stdio: 'ignore' });
+  } catch (error) {
+    // Ignore errors - not all systems have this command
+  }
+  
+  console.log(`✓ Created desktop entry: ${desktopFile}`);
+  console.log(`\n🎉 You can now launch Projax from:`);
+  console.log(`   - Application menu`);
+  console.log(`   - Application launcher (search for "${appName}")`);
+  console.log(`\n💡 Tip: You may need to log out and back in for the entry to appear.`);
+}
+
+// Create Windows application alias
+async function createWindowsAppAlias() {
+  const appName = 'Projax';
+  const startMenuPath = path.join(
+    process.env.APPDATA || '',
+    'Microsoft',
+    'Windows',
+    'Start Menu',
+    'Programs'
+  );
+  
+  // Get the path to the prx command
+  let prxPath: string;
+  try {
+    prxPath = execSync('where prx', { encoding: 'utf-8' }).trim().split('\n')[0];
+  } catch (error) {
+    console.error('Error: prx command not found. Please ensure projax is installed globally.');
+    process.exit(1);
+  }
+  
+  console.log(`\n📦 Creating ${appName} Start Menu shortcut...`);
+  
+  // Create a batch file to launch Projax
+  const batchFile = path.join(startMenuPath, 'Projax.bat');
+  const batchContent = `@echo off
+"${prxPath}" ui
+`;
+  
+  fs.writeFileSync(batchFile, batchContent);
+  
+  // Try to create a VBScript to create a proper shortcut
+  const vbsScript = `
+Set oWS = WScript.CreateObject("WScript.Shell")
+sLinkFile = "${path.join(startMenuPath, 'Projax.lnk').replace(/\\/g, '\\\\')}"
+Set oLink = oWS.CreateShortcut(sLinkFile)
+oLink.TargetPath = "cmd.exe"
+oLink.Arguments = "/c \\"${prxPath.replace(/\\/g, '\\\\')}\\" ui"
+oLink.WorkingDirectory = "${os.homedir().replace(/\\/g, '\\\\')}"
+oLink.Description = "Projax - Project Management Dashboard"
+oLink.WindowStyle = 7
+oLink.Save
+`;
+  
+  const vbsFile = path.join(os.tmpdir(), 'create-projax-shortcut.vbs');
+  fs.writeFileSync(vbsFile, vbsScript);
+  
+  try {
+    execSync(`cscript //nologo "${vbsFile}"`, { stdio: 'ignore' });
+    fs.unlinkSync(vbsFile);
+    fs.unlinkSync(batchFile);
+    
+    console.log(`✓ Created Start Menu shortcut`);
+    console.log(`\n🎉 You can now launch Projax from:`);
+    console.log(`   - Start Menu (search for "${appName}")`);
+    console.log(`   - Taskbar (pin the shortcut)`);
+  } catch (error) {
+    // Fallback: just use the batch file
+    console.log(`✓ Created Start Menu batch file: ${batchFile}`);
+    console.log(`\n🎉 You can now launch Projax from:`);
+    console.log(`   - Start Menu (search for "${appName}")`);
+    console.log(`\n⚠️  Note: Could not create a proper shortcut. Using batch file instead.`);
+  }
+}
 
 // Function to check API status
 async function checkAPIStatus(): Promise<{ running: boolean; port: number | null }> {
@@ -1306,7 +1546,13 @@ program
   .alias('ui')
   .description('Start the UI web interface')
   .option('--dev', 'Start in development mode (with hot reload)')
+  .option('--add-application-alias', 'Create application launcher in Applications folder')
   .action(async (options) => {
+    // Handle add-application-alias option
+    if (options.addApplicationAlias) {
+      await handleAddApplicationAlias();
+      return;
+    }
     try {
       // Clear Electron cache to prevent stale module issues
       if (os.platform() === 'darwin') {
@@ -1351,7 +1597,7 @@ program
       
       const localDesktopPath = path.join(__dirname, '..', '..', 'desktop');
       const localDesktopMain = path.join(localDesktopPath, 'dist', 'main.js');
-
+      
       // Check if bundled UI app exists (global install)
       const hasBundledDesktop = Boolean(bundledDesktopPath && bundledDesktopMain);
       // Check if local UI app exists (development mode)
