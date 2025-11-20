@@ -416,5 +416,9 @@ export function getDatabase(): JSONDatabase {
   return dbInstance;
 }
 
+export function resetDatabase(): void {
+  dbInstance = null;
+}
+
 export { JSONDatabase };
 

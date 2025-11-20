@@ -52,30 +52,23 @@ function isTestFile(filePath: string, framework: string | null): boolean {
   const ext = path.extname(filePath).toLowerCase();
   const basename = path.basename(filePath).toLowerCase();
   
-  // Common test file patterns
+  // Common test file patterns for JS/TS projects
   if (basename.includes('.test.') || basename.includes('.spec.')) {
     return true;
   }
   
-  // Framework-specific patterns
-  if (framework === 'jest' || framework === 'vitest') {
-    return ext === '.ts' || ext === '.tsx' || ext === '.js' || ext === '.jsx';
-  }
-  
-  if (framework === 'mocha') {
-    return ext === '.js' || ext === '.ts';
-  }
-  
+  // Python-specific patterns
   if (framework === 'pytest') {
-    return ext === '.py' && (basename.startsWith('test_') || basename.includes('_test'));
+    return ext === '.py' && (basename.startsWith('test_') || basename.includes('_test.'));
   }
   
   if (framework === 'unittest') {
-    return ext === '.py' && basename.startsWith('test');
+    return ext === '.py' && basename.startsWith('test') && ext === '.py';
   }
   
-  // Default: check for test/spec in name
-  return basename.includes('test') || basename.includes('spec');
+  // Default: check for test/spec in name (more strict)
+  return basename.includes('test.') || basename.includes('spec.') || 
+         basename.startsWith('test_') || basename.endsWith('_test.py');
 }
 
 function findTestFiles(dir: string, framework: string | null, results: string[] = []): string[] {

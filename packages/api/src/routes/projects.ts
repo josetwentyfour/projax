@@ -5,11 +5,11 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 const router = Router();
-const db = getDatabase();
 
 // GET /api/projects/tags - Get all unique tags
 router.get('/tags', (req: Request, res: Response) => {
   try {
+    const db = getDatabase();
     const tags = db.getAllTags();
     res.json(tags);
   } catch (error) {
@@ -21,6 +21,7 @@ router.get('/tags', (req: Request, res: Response) => {
 // GET /api/projects - List all projects
 router.get('/', (req: Request, res: Response) => {
   try {
+    const db = getDatabase();
     const projects = db.getAllProjects();
     res.json(projects);
   } catch (error) {
@@ -31,6 +32,7 @@ router.get('/', (req: Request, res: Response) => {
 // POST /api/projects - Add a new project
 router.post('/', (req: Request, res: Response) => {
   try {
+    const db = getDatabase();
     const { name, path: projectPath } = req.body;
     
     if (!name || !projectPath) {
@@ -63,6 +65,7 @@ router.post('/', (req: Request, res: Response) => {
 // Using regex to only match numeric IDs, allowing /tags to be matched first
 router.get('/:id(\\d+)', (req: Request, res: Response) => {
   try {
+    const db = getDatabase();
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ error: 'Invalid project ID' });
@@ -82,6 +85,7 @@ router.get('/:id(\\d+)', (req: Request, res: Response) => {
 // PUT /api/projects/:id - Update project
 router.put('/:id(\\d+)', (req: Request, res: Response) => {
   try {
+    const db = getDatabase();
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ error: 'Invalid project ID' });
@@ -110,6 +114,7 @@ router.put('/:id(\\d+)', (req: Request, res: Response) => {
 // DELETE /api/projects/:id - Remove project
 router.delete('/:id(\\d+)', (req: Request, res: Response) => {
   try {
+    const db = getDatabase();
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ error: 'Invalid project ID' });
@@ -130,6 +135,7 @@ router.delete('/:id(\\d+)', (req: Request, res: Response) => {
 // GET /api/projects/:id/tests - Get tests for project
 router.get('/:id(\\d+)/tests', (req: Request, res: Response) => {
   try {
+    const db = getDatabase();
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ error: 'Invalid project ID' });
@@ -150,6 +156,7 @@ router.get('/:id(\\d+)/tests', (req: Request, res: Response) => {
 // GET /api/projects/:id/ports - Get project ports
 router.get('/:id(\\d+)/ports', (req: Request, res: Response) => {
   try {
+    const db = getDatabase();
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ error: 'Invalid project ID' });
