@@ -31,6 +31,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [runningProcesses, setRunningProcesses] = useState<any[]>([]);
   const [keyboardFocusedIndex, setKeyboardFocusedIndex] = useState<number>(-1);
+  const [focusedPanel, setFocusedPanel] = useState<'sidebar' | 'details' | 'terminal'>('sidebar');
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const [sidebarWidth, setSidebarWidth] = useState<number>(280);
   const [terminalWidth, setTerminalWidth] = useState<number>(550);
@@ -238,7 +239,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [keyboardFocusedIndex, filteredProjects]);
+  }, [keyboardFocusedIndex, filteredProjects, focusedPanel, selectedProject, terminalProcess]);
 
   // Reset keyboard focus when projects change
   useEffect(() => {
@@ -309,7 +310,10 @@ function App() {
             <ProjectList
               projects={filteredProjects}
               selectedProject={selectedProject}
-              onSelectProject={setSelectedProject}
+              onSelectProject={(project) => {
+                setSelectedProject(project);
+                setKeyboardFocusedIndex(-1); // Clear keyboard focus when clicking
+              }}
               loading={loading}
               runningProcesses={runningProcesses}
               keyboardFocusedIndex={keyboardFocusedIndex}
