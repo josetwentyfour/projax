@@ -266,3 +266,134 @@
   opacity: 0.7;
 }
 
+/* Terminal Loupe - Server Detection Toolbar */
+.terminal-loupe {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border-color);
+  position: relative;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.terminal-loupe::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    var(--accent-cyan) 50%, 
+    transparent 100%);
+  opacity: 0.4;
+}
+
+.terminal-loupe-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.terminal-loupe-icon {
+  font-size: 12px;
+  animation: pulse 2s infinite;
+}
+
+.terminal-loupe-title {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.terminal-loupe-servers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.terminal-loupe-server {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.625rem 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  gap: 1rem;
+}
+
+.terminal-loupe-server:hover {
+  background: var(--bg-primary);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 1px rgba(57, 197, 207, 0.1);
+}
+
+.terminal-loupe-server-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.terminal-loupe-port {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  font-family: 'SF Mono', 'Monaco', monospace;
+  letter-spacing: -0.5px;
+  flex-shrink: 0;
+}
+
+.terminal-loupe-url {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: 'SF Mono', 'Monaco', monospace;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.terminal-loupe-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* Button styles for terminal loupe */
+.terminal-loupe-actions .btn {
+  font-size: 10px;
+  padding: 0.375rem 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.terminal-loupe-actions .btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(57, 197, 207, 0.3);
+}
+
+.terminal-loupe-actions .btn-secondary:hover {
+  transform: translateY(-1px);
+}
+
