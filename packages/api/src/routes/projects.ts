@@ -200,5 +200,91 @@ router.post('/:id(\\d+)/scan', (req: Request, res: Response) => {
   }
 });
 
+// GET /api/projects/:id/test-results - Get test results for a project
+router.get('/:id(\\d+)/test-results', (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+    
+    const project = db.getProject(id);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+    const results = db.getTestResultsByProject(id, limit);
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch test results' });
+  }
+});
+
+// GET /api/projects/:id/test-results/latest - Get latest test result for a project
+router.get('/:id(\\d+)/test-results/latest', (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+    
+    const project = db.getProject(id);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    const result = db.getLatestTestResult(id);
+    if (!result) {
+      return res.status(404).json({ error: 'No test results found' });
+    }
+    
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch latest test result' });
+  }
+});
+
+// POST /api/projects/:id/test-results - Add a test result
+router.post('/:id(\\d+)/test-results', (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+    
+    const project = db.getProject(id);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    const { scriptName, passed, failed, skipped, total, duration, coverage, framework, rawOutput } = req.body;
+    
+    if (scriptName === undefined || passed === undefined || failed === undefined) {
+      return res.status(400).json({ error: 'scriptName, passed, and failed are required' });
+    }
+    
+    const result = db.addTestResult(
+      id,
+      scriptName,
+      passed,
+      failed,
+      skipped || 0,
+      total || (passed + failed + (skipped || 0)),
+      duration || null,
+      coverage || null,
+      framework || null,
+      rawOutput || null
+    );
+    
+    res.status(201).json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to add test result' });
+  }
+});
+
 export default router;
 

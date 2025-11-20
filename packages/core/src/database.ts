@@ -45,6 +45,21 @@ export interface ProjectPort {
   created_at: number;
 }
 
+export interface TestResult {
+  id: number;
+  project_id: number;
+  script_name: string;
+  framework: string | null;
+  passed: number;
+  failed: number;
+  skipped: number;
+  total: number;
+  duration: number | null; // milliseconds
+  coverage: number | null; // percentage
+  timestamp: number;
+  raw_output: string | null;
+}
+
 type ScanResponse = {
   project: Project;
   testsFound: number;
@@ -53,7 +68,7 @@ type ScanResponse = {
 
 class DatabaseManager {
   private apiBaseUrl: string;
-  private defaultPort = 3001;
+  private defaultPort = 38124;
 
   constructor() {
     // Read API port from file, or use default
@@ -280,6 +295,47 @@ class DatabaseManager {
 
   getAllSettings(): Record<string, string> {
     return this.request<Record<string, string>>('/settings');
+  }
+
+  // Test Result operations
+  addTestResult(
+    projectId: number,
+    scriptName: string,
+    passed: number,
+    failed: number,
+    skipped: number = 0,
+    total: number = passed + failed + skipped,
+    duration: number | null = null,
+    coverage: number | null = null,
+    framework: string | null = null,
+    rawOutput: string | null = null
+  ): TestResult {
+    return this.request<TestResult>(`/projects/${projectId}/test-results`, {
+      method: 'POST',
+      body: JSON.stringify({
+        scriptName,
+        passed,
+        failed,
+        skipped,
+        total,
+        duration,
+        coverage,
+        framework,
+        rawOutput,
+      }),
+    });
+  }
+
+  getLatestTestResult(projectId: number): TestResult | null {
+    try {
+      return this.request<TestResult>(`/projects/${projectId}/test-results/latest`);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  getTestResultsByProject(projectId: number, limit: number = 10): TestResult[] {
+    return this.request<TestResult[]>(`/projects/${projectId}/test-results?limit=${limit}`);
   }
 
   close(): void {

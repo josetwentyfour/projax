@@ -912,7 +912,7 @@ export function runScriptInBackground(
     addProcess(processInfo);
 
     // Listen for process exit to clean up tracking
-    child.on('exit', (code, signal) => {
+    child.on('exit', async (code, signal) => {
       // Remove from tracking when process exits
       removeProcess(child.pid!);
       
@@ -922,6 +922,9 @@ export function runScriptInBackground(
       } else if (signal !== null) {
         fs.appendFileSync(logFile, `\n\n[Process killed by signal ${signal}]\n`);
       }
+      
+      // Check if this was a test script and parse results
+      await checkAndParseTestResults(logFile, projectPath, scriptName);
     });
 
     // Unref so parent can exit and process runs independently
@@ -986,5 +989,73 @@ export function runScriptInBackground(
     // Resolve with PID since process is running in background
     resolve(child.pid);
   });
+}
+
+/**
+ * Check log file for test output and parse results
+ */
+async function checkAndParseTestResults(logFile: string, projectPath: string, scriptName: string): Promise<void> {
+  try {
+    // Only parse if script name suggests it's a test command
+    const testScriptPatterns = ['test', 'spec', 'jest', 'vitest', 'mocha', 'pytest', 'unittest'];
+    const isTestScript = testScriptPatterns.some(pattern => scriptName.toLowerCase().includes(pattern));
+    
+    if (!isTestScript) {
+      return;
+    }
+    
+    // Read the log file
+    if (!fs.existsSync(logFile)) {
+      return;
+    }
+    
+    const logContent = fs.readFileSync(logFile, 'utf-8');
+    
+    // Import test parser (dynamic to avoid circular dependency issues)
+    const testParserPath = path.join(__dirname, 'test-parser.js');
+    if (!fs.existsSync(testParserPath)) {
+      // Parser not available (might be in development mode)
+      return;
+    }
+    
+    const { parseTestOutput, isTestOutput } = await import(testParserPath);
+    
+    // Check if output contains test results
+    if (!isTestOutput(logContent)) {
+      return;
+    }
+    
+    // Parse test results
+    const parsed = parseTestOutput(logContent);
+    if (!parsed) {
+      return;
+    }
+    
+    // Get project from database
+    const db = getDatabaseManager();
+    const project = db.getProjectByPath(projectPath);
+    if (!project) {
+      return;
+    }
+    
+    // Save test results to database
+    db.addTestResult(
+      project.id,
+      scriptName,
+      parsed.passed,
+      parsed.failed,
+      parsed.skipped,
+      parsed.total,
+      parsed.duration,
+      parsed.coverage,
+      parsed.framework,
+      logContent.slice(-5000) // Store last 5000 chars of output
+    );
+    
+    console.log(`\n📊 Test results saved: ${parsed.passed} passed, ${parsed.failed} failed, ${parsed.skipped} skipped`);
+  } catch (error) {
+    // Silently fail - test parsing is optional
+    console.error('Error parsing test results:', error);
+  }
 }
 

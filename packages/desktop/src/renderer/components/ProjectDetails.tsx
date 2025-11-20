@@ -34,6 +34,8 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   const [allTags, setAllTags] = useState<string[]>([]);
   const [projectTags, setProjectTags] = useState<string[]>(project.tags || []);
   const [editorSettings, setEditorSettings] = useState<any>(null);
+  const [latestTestResult, setLatestTestResult] = useState<any>(null);
+  const [loadingTestResult, setLoadingTestResult] = useState(false);
 
   useEffect(() => {
     setProjectName(project.name);
@@ -44,10 +46,12 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     loadRunningProcesses();
     loadAllTags();
     loadEditorSettings();
+    loadLatestTestResult();
     
-    // Refresh running processes every 5 seconds
+    // Refresh running processes and test results every 5 seconds
     const interval = setInterval(() => {
       loadRunningProcesses();
+      loadLatestTestResult();
     }, 5000);
     
     return () => clearInterval(interval);
@@ -102,6 +106,24 @@ const loadScripts = async () => {
       setPorts([]);
     } finally {
       setLoadingPorts(false);
+    }
+  };
+
+  const loadLatestTestResult = async () => {
+    try {
+      setLoadingTestResult(true);
+      const response = await fetch(`http://localhost:38124/api/projects/${project.id}/test-results/latest`);
+      if (response.ok) {
+        const result = await response.json();
+        setLatestTestResult(result);
+      } else if (response.status === 404) {
+        setLatestTestResult(null);
+      }
+    } catch (error) {
+      // Silently fail - test results are optional
+      setLatestTestResult(null);
+    } finally {
+      setLoadingTestResult(false);
     }
   };
 
@@ -396,6 +418,64 @@ const loadScripts = async () => {
           <div className="stat-label">Scripts</div>
         </div>
       </div>
+
+      {/* Test Results Section */}
+      {latestTestResult && (
+        <div className="test-results-section">
+          <div className="section-header">
+            <h3>Latest Test Results</h3>
+            <span className="test-timestamp">
+              {new Date(latestTestResult.timestamp * 1000).toLocaleString()}
+            </span>
+          </div>
+          <div className="test-results-content">
+            <div className="test-stats-grid">
+              <div className="test-stat passed">
+                <div className="test-stat-icon">✓</div>
+                <div className="test-stat-info">
+                  <div className="test-stat-value">{latestTestResult.passed}</div>
+                  <div className="test-stat-label">Passed</div>
+                </div>
+              </div>
+              <div className="test-stat failed">
+                <div className="test-stat-icon">✗</div>
+                <div className="test-stat-info">
+                  <div className="test-stat-value">{latestTestResult.failed}</div>
+                  <div className="test-stat-label">Failed</div>
+                </div>
+              </div>
+              {latestTestResult.skipped > 0 && (
+                <div className="test-stat skipped">
+                  <div className="test-stat-icon">⊘</div>
+                  <div className="test-stat-info">
+                    <div className="test-stat-value">{latestTestResult.skipped}</div>
+                    <div className="test-stat-label">Skipped</div>
+                  </div>
+                </div>
+              )}
+              <div className="test-stat total">
+                <div className="test-stat-icon">∑</div>
+                <div className="test-stat-info">
+                  <div className="test-stat-value">{latestTestResult.total}</div>
+                  <div className="test-stat-label">Total</div>
+                </div>
+              </div>
+            </div>
+            <div className="test-meta">
+              {latestTestResult.framework && (
+                <span className="test-framework-badge">{latestTestResult.framework}</span>
+              )}
+              {latestTestResult.duration && (
+                <span className="test-duration">⏱ {(latestTestResult.duration / 1000).toFixed(2)}s</span>
+              )}
+              {latestTestResult.coverage && (
+                <span className="test-coverage">📊 {latestTestResult.coverage.toFixed(1)}% coverage</span>
+              )}
+              <span className="test-script-name">Script: {latestTestResult.script_name}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tags Section */}
       <div className="tags-section">

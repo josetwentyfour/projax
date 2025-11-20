@@ -1,13 +1,14 @@
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
-import { DatabaseSchema, Project, Test, JenkinsJob, ProjectPort } from './types';
+import { DatabaseSchema, Project, Test, JenkinsJob, ProjectPort, TestResult } from './types';
 
 const defaultData: DatabaseSchema = {
   projects: [],
   tests: [],
   jenkins_jobs: [],
   project_ports: [],
+  test_results: [],
   settings: [],
 };
 
@@ -79,6 +80,10 @@ class JSONDatabase {
     }
     if (!this.data.project_ports) {
       this.data.project_ports = [];
+      needsWrite = true;
+    }
+    if (!this.data.test_results) {
+      this.data.test_results = [];
       needsWrite = true;
     }
     if (!this.data.settings) {
@@ -195,6 +200,7 @@ class JSONDatabase {
     this.data.tests = this.data.tests.filter(t => t.project_id !== id);
     this.data.jenkins_jobs = this.data.jenkins_jobs.filter(j => j.project_id !== id);
     this.data.project_ports = this.data.project_ports.filter(p => p.project_id !== id);
+    this.data.test_results = this.data.test_results.filter(r => r.project_id !== id);
     this.write();
   }
 
@@ -244,6 +250,69 @@ class JSONDatabase {
   removeTestsByProject(projectId: number): void {
     
     this.data.tests = this.data.tests.filter(t => t.project_id !== projectId);
+    this.write();
+  }
+
+  // Test Result operations
+  addTestResult(
+    projectId: number,
+    scriptName: string,
+    passed: number,
+    failed: number,
+    skipped: number = 0,
+    total: number = passed + failed + skipped,
+    duration: number | null = null,
+    coverage: number | null = null,
+    framework: string | null = null,
+    rawOutput: string | null = null
+  ): TestResult {
+    const results = this.data.test_results;
+    
+    const newId = results.length > 0 
+      ? Math.max(...results.map(r => r.id)) + 1 
+      : 1;
+    
+    const testResult: TestResult = {
+      id: newId,
+      project_id: projectId,
+      script_name: scriptName,
+      framework,
+      passed,
+      failed,
+      skipped,
+      total,
+      duration,
+      coverage,
+      timestamp: Math.floor(Date.now() / 1000),
+      raw_output: rawOutput,
+    };
+    
+    results.push(testResult);
+    this.write();
+    return testResult;
+  }
+
+  getTestResult(id: number): TestResult | null {
+    return this.data.test_results.find(r => r.id === id) || null;
+  }
+
+  getLatestTestResult(projectId: number): TestResult | null {
+    const projectResults = this.data.test_results
+      .filter(r => r.project_id === projectId)
+      .sort((a, b) => b.timestamp - a.timestamp);
+    
+    return projectResults.length > 0 ? projectResults[0] : null;
+  }
+
+  getTestResultsByProject(projectId: number, limit: number = 10): TestResult[] {
+    return this.data.test_results
+      .filter(r => r.project_id === projectId)
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, limit);
+  }
+
+  removeTestResultsByProject(projectId: number): void {
+    this.data.test_results = this.data.test_results.filter(r => r.project_id !== projectId);
     this.write();
   }
 

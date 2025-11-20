@@ -41,11 +41,27 @@ export interface ProjectPort {
   created_at: number;
 }
 
+export interface TestResult {
+  id: number;
+  project_id: number;
+  script_name: string;
+  framework: string | null;
+  passed: number;
+  failed: number;
+  skipped: number;
+  total: number;
+  duration: number | null; // milliseconds
+  coverage: number | null; // percentage
+  timestamp: number;
+  raw_output: string | null;
+}
+
 export interface DatabaseSchema {
   projects: Project[];
   tests: Test[];
   jenkins_jobs: JenkinsJob[];
   project_ports: ProjectPort[];
+  test_results: TestResult[];
   settings: Array<{ key: string; value: string; updated_at: number }>;
 }
 
