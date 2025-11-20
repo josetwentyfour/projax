@@ -629,6 +629,10 @@
   color: var(--text-secondary);
 }
 
+.process-badge .btn:first-of-type {
+  margin-left: auto;
+}
+
 .process-indicator {
   color: var(--accent-cyan);
   font-size: 8px;

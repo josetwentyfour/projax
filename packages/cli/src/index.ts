@@ -557,6 +557,8 @@ program
   .option('--tags <tags>', 'Comma-separated list of tags')
   .action(async (projectPath?: string, options?: { name?: string; description?: string; tags?: string }) => {
     try {
+      await ensureAPIServerRunning(true);
+      
       let finalPath = projectPath;
       
       if (!finalPath) {
@@ -705,6 +707,8 @@ program
   .option('--ports', 'Show detailed port information per script')
   .action(async (options) => {
     try {
+      await ensureAPIServerRunning(true);
+      
       const db = getDatabaseManager();
       const projects = getAllProjects();
       
@@ -823,6 +827,8 @@ program
   .argument('[project]', 'Project ID or name to scan (leave empty to scan all)')
   .action(async (projectIdentifier?: string) => {
     try {
+      await ensureAPIServerRunning(true);
+      
       const db = getDatabaseManager();
       
       if (projectIdentifier) {
@@ -932,8 +938,10 @@ program
   .description('Set or get project description')
   .argument('<project>', 'Project ID or name')
   .argument('[description]', 'New description (leave empty to view current)')
-  .action((projectIdentifier: string, description?: string) => {
+  .action(async (projectIdentifier: string, description?: string) => {
     try {
+      await ensureAPIServerRunning(true);
+      
       const db = getDatabaseManager();
       const projects = getAllProjects();
       const project = projects.find(
@@ -975,8 +983,10 @@ program
   .argument('<project>', 'Project ID or name')
   .argument('[action]', 'Action: add, remove, or list (default: list)', 'list')
   .argument('[tag]', 'Tag name (required for add/remove)')
-  .action((projectIdentifier: string, action: string = 'list', tag?: string) => {
+  .action(async (projectIdentifier: string, action: string = 'list', tag?: string) => {
     try {
+      await ensureAPIServerRunning(true);
+      
       const db = getDatabaseManager();
       const projects = getAllProjects();
       const project = projects.find(
@@ -1039,6 +1049,8 @@ program
   .argument('<project>', 'Project ID or name')
   .action(async (projectIdentifier: string) => {
     try {
+      await ensureAPIServerRunning(true);
+      
       const projects = getAllProjects();
       const project = projects.find(
         p => p.id.toString() === projectIdentifier || p.name === projectIdentifier
@@ -1151,6 +1163,8 @@ program
   .argument('<project>', 'Project ID or name')
   .action(async (projectIdentifier: string) => {
     try {
+      await ensureAPIServerRunning(true);
+      
       const projects = getAllProjects();
       const project = projects.find(
         p => p.id.toString() === projectIdentifier || p.name === projectIdentifier
@@ -1208,6 +1222,8 @@ program
   .option('-f, --force', 'Skip confirmation')
   .action(async (projectIdentifier: string, options: { force?: boolean }) => {
     try {
+      await ensureAPIServerRunning(true);
+      
       const db = getDatabaseManager();
       const projects = getAllProjects();
       const project = projects.find(
@@ -1251,6 +1267,8 @@ program
   .argument('[project]', 'Project ID or name (leave empty for interactive selection)')
   .action(async (projectIdentifier?: string) => {
     try {
+      await ensureAPIServerRunning(true);
+      
       const projects = getAllProjects();
       
       if (projects.length === 0) {
@@ -1324,6 +1342,8 @@ program
   .argument('[project]', 'Project ID or name (leave empty for interactive selection)')
   .action(async (projectIdentifier?: string) => {
     try {
+      await ensureAPIServerRunning(true);
+      
       const projects = getAllProjects();
       
       if (projects.length === 0) {
@@ -1964,6 +1984,8 @@ program
   .argument('[project]', 'Project ID or name to scan (leave empty to scan all)')
   .action(async (projectIdentifier?: string) => {
     try {
+      await ensureAPIServerRunning(true);
+      
       const { scanProjectPorts, scanAllProjectPorts } = await import('./port-scanner');
       const db = getDatabaseManager();
       

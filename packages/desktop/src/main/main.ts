@@ -47,6 +47,7 @@ if (!gotTheLock) {
       height: 800,
       frame: false,
       titleBarStyle: 'hidden',
+      title: 'PROJAX UI',
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         nodeIntegration: false,
