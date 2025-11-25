@@ -17,6 +17,10 @@ export default defineConfig({
   },
   server: {
     port: 7898,
+    strictPort: true,
+    hmr: {
+      clientPort: 7898,
+    },
   },
 });
 

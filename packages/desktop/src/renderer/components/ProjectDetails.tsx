@@ -7,16 +7,20 @@ import './ProjectDetails.css';
 
 interface ProjectDetailsProps {
   project: Project;
+  workspace?: any;
   onProjectUpdate?: (project: Project) => void;
   onRemoveProject?: (projectId: number) => void;
   onOpenTerminal?: (pid: number, scriptName: string, projectName: string) => void;
+  onNavigateBack?: () => void;
 }
 
 const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   project,
+  workspace,
   onProjectUpdate,
   onRemoveProject,
   onOpenTerminal,
+  onNavigateBack,
 }) => {
   const [editingName, setEditingName] = useState(false);
   const [projectName, setProjectName] = useState(project.name);
@@ -36,6 +40,8 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   const [editorSettings, setEditorSettings] = useState<any>(null);
   const [latestTestResult, setLatestTestResult] = useState<any>(null);
   const [loadingTestResult, setLoadingTestResult] = useState(false);
+  const [scriptSortOrder, setScriptSortOrder] = useState<'default' | 'alphabetical' | 'last-used'>('default');
+  const [scriptLastUsed, setScriptLastUsed] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     setProjectName(project.name);
@@ -47,6 +53,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     loadAllTags();
     loadEditorSettings();
     loadLatestTestResult();
+    loadProjectSettings();
     
     // Refresh running processes and test results every 5 seconds
     const interval = setInterval(() => {
@@ -57,9 +64,60 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     return () => clearInterval(interval);
   }, [project]);
 
+  const loadProjectSettings = async () => {
+    try {
+      const apiBaseUrl = await getApiBaseUrl();
+      if (!apiBaseUrl) return;
+      const response = await fetch(`${apiBaseUrl}/projects/${project.id}/settings`);
+      if (response.ok) {
+        const settings = await response.json();
+        setScriptSortOrder(settings.script_sort_order || 'default');
+      }
+    } catch (error) {
+      console.error('Error loading project settings:', error);
+    }
+  };
+
+  const saveProjectSettings = async (sortOrder: 'default' | 'alphabetical' | 'last-used') => {
+    try {
+      const apiBaseUrl = await getApiBaseUrl();
+      if (!apiBaseUrl) return;
+      const response = await fetch(`${apiBaseUrl}/projects/${project.id}/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script_sort_order: sortOrder }),
+      });
+      if (response.ok) {
+        setScriptSortOrder(sortOrder);
+      }
+    } catch (error) {
+      console.error('Error saving project settings:', error);
+    }
+  };
+
+  const getApiBaseUrl = async (): Promise<string | null> => {
+    const ports = [38124, 38125, 38126, 38127, 38128, 3001];
+    for (const port of ports) {
+      try {
+        const response = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(500) });
+        if (response.ok) {
+          return `http://localhost:${port}/api`;
+        }
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  };
+
   const loadAllTags = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/projects/tags');
+      const apiBaseUrl = await getApiBaseUrl();
+      if (!apiBaseUrl) {
+        setAllTags([]);
+        return;
+      }
+      const response = await fetch(`${apiBaseUrl}/projects/tags`);
       if (!response.ok) {
         console.error('Failed to load tags:', response.status);
         setAllTags([]);
@@ -228,6 +286,8 @@ const loadScripts = async () => {
   const handleRunScript = async (scriptName: string, background: boolean = true) => {
     try {
       setRunningScripts(prev => new Set(prev).add(scriptName));
+      // Track last-used timestamp
+      setScriptLastUsed(prev => new Map(prev).set(scriptName, Date.now()));
       await window.electronAPI.runScript(project.path, scriptName, [], background);
       if (background) {
         // Refresh processes after a short delay
@@ -306,12 +366,37 @@ const loadScripts = async () => {
     return Array.from(urls).sort();
   }, [runningProcesses, ports]);
 
+  // Sort scripts based on sort order
+  const sortedScripts = useMemo(() => {
+    if (!scripts?.scripts) return [];
+    const sorted = [...scripts.scripts];
+    if (scriptSortOrder === 'alphabetical') {
+      sorted.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (scriptSortOrder === 'last-used') {
+      sorted.sort((a, b) => {
+        const aTime = scriptLastUsed.get(a.name) || 0;
+        const bTime = scriptLastUsed.get(b.name) || 0;
+        return bTime - aTime; // Most recent first
+      });
+    }
+    return sorted;
+  }, [scripts?.scripts, scriptSortOrder, scriptLastUsed]);
+
   const lastScanned = project.last_scanned
     ? new Date(project.last_scanned * 1000).toLocaleString()
     : 'Never';
 
   return (
     <div className="project-details">
+      {workspace && onNavigateBack && (
+        <div className="breadcrumb">
+          <button className="breadcrumb-link" onClick={onNavigateBack}>
+            {workspace.name}
+          </button>
+          <span className="breadcrumb-separator">/</span>
+          <span className="breadcrumb-current">{project.name}</span>
+        </div>
+      )}
       <div className="project-details-header">
         <div>
           {editingName ? (
@@ -353,9 +438,8 @@ const loadScripts = async () => {
                   }
                 }}
                 className="project-description-input"
-                placeholder="Add a description..."
+                placeholder="Add a description for this project... (⌘+Enter to save, Esc to cancel)"
                 autoFocus
-                rows={2}
               />
             </div>
           ) : (
@@ -553,7 +637,18 @@ const loadScripts = async () => {
         <div className="scripts-section">
           <div className="section-header">
             <h3>Available Scripts ({scripts.scripts.length})</h3>
-            <span className="project-type-badge">{scripts.type}</span>
+            <div className="section-header-right">
+              <span className="project-type-badge">{scripts.type}</span>
+              <select
+                value={scriptSortOrder}
+                onChange={(e) => saveProjectSettings(e.target.value as 'default' | 'alphabetical' | 'last-used')}
+                className="script-sort-select"
+              >
+                <option value="default">Default</option>
+                <option value="alphabetical">Alphabetically</option>
+                <option value="last-used">Last Used</option>
+              </select>
+            </div>
           </div>
           {loadingScripts ? (
             <div className="loading-state">Loading scripts...</div>
@@ -561,7 +656,7 @@ const loadScripts = async () => {
             <div className="no-scripts">No scripts found in this project.</div>
           ) : (
             <div className="scripts-list">
-              {scripts.scripts.map((script: any) => {
+              {sortedScripts.map((script: any) => {
                 const scriptProcesses = runningProcesses.filter((p: any) => p.scriptName === script.name);
                 const isRunning = scriptProcesses.length > 0;
                 // Match ports from the ports array with this script name

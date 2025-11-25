@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDatabase } from '../database';
 import { scanProject, scanAllProjects } from '../services/scanner';
+import { getCurrentBranch } from 'projax-core';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -283,6 +284,27 @@ router.post('/:id(\\d+)/test-results', (req: Request, res: Response) => {
     res.status(201).json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to add test result' });
+  }
+});
+
+// GET /api/projects/:id/git-branch - Get git branch for a project
+router.get('/:id(\\d+)/git-branch', (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+    
+    const project = db.getProject(id);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    const branch = getCurrentBranch(project.path);
+    res.json({ branch });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get git branch' });
   }
 });
 

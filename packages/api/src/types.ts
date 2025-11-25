@@ -8,6 +8,7 @@ export interface Project {
   last_scanned: number | null;
   created_at: number;
   tags?: string[];
+  git_branch?: string | null;
 }
 
 export interface Test {
@@ -56,6 +57,31 @@ export interface TestResult {
   raw_output: string | null;
 }
 
+export interface Workspace {
+  id: number;
+  name: string;
+  workspace_file_path: string;
+  description: string | null;
+  tags?: string[];
+  created_at: number;
+  last_opened: number | null;
+}
+
+export interface WorkspaceProject {
+  id: number;
+  workspace_id: number;
+  project_path: string;
+  order: number;
+  created_at: number;
+}
+
+export interface ProjectSettings {
+  id: number;
+  project_id: number;
+  script_sort_order: 'default' | 'alphabetical' | 'last-used';
+  updated_at: number;
+}
+
 export interface DatabaseSchema {
   projects: Project[];
   tests: Test[];
@@ -63,5 +89,8 @@ export interface DatabaseSchema {
   project_ports: ProjectPort[];
   test_results: TestResult[];
   settings: Array<{ key: string; value: string; updated_at: number }>;
+  workspaces: Workspace[];
+  workspace_projects: WorkspaceProject[];
+  project_settings: ProjectSettings[];
 }
 

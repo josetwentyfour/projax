@@ -101,6 +101,21 @@
   flex: 1;
   font-family: inherit;
   letter-spacing: 0.2px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.git-branch-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  background: var(--bg-hover);
+  color: var(--accent-purple, #bc8cff);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  font-family: 'SF Mono', 'Monaco', monospace;
+  opacity: 0.9;
 }
 
 .project-remove-btn {

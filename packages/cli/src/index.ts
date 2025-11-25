@@ -766,10 +766,23 @@ program
         // Table format
         console.log(`\nTracked Projects (${projects.length}):\n`);
         
+        // Fetch git branches for all projects
+        const { getCurrentBranch } = await import('../../core/src/git-utils');
+        const branchMap = new Map<number, string | null>();
+        for (const project of projects) {
+          try {
+            const branch = getCurrentBranch(project.path);
+            branchMap.set(project.id, branch);
+          } catch {
+            branchMap.set(project.id, null);
+          }
+        }
+        
         // Calculate column widths
         const idWidth = Math.max(3, projects.length.toString().length);
         const nameWidth = Math.max(4, ...projects.map(p => p.name.length));
-        const pathWidth = Math.max(4, Math.min(40, ...projects.map(p => p.path.length)));
+        const pathWidth = Math.max(4, Math.min(35, ...projects.map(p => p.path.length)));
+        const branchWidth = 15;
         const portsWidth = 12;
         const testsWidth = 6;
         const scannedWidth = 20;
@@ -779,6 +792,7 @@ program
           'ID'.padEnd(idWidth),
           'Name'.padEnd(nameWidth),
           'Path'.padEnd(pathWidth),
+          'Branch'.padEnd(branchWidth),
           'Ports'.padEnd(portsWidth),
           'Tests'.padEnd(testsWidth),
           'Last Scanned'.padEnd(scannedWidth),
@@ -798,14 +812,18 @@ program
             ? ports.map(p => p.port).sort((a, b) => a - b).join(', ')
             : 'N/A';
           
-          const pathDisplay = project.path.length > 40
-            ? '...' + project.path.slice(-37)
+          const pathDisplay = project.path.length > 35
+            ? '...' + project.path.slice(-32)
             : project.path;
+          
+          const branch = branchMap.get(project.id) || 'N/A';
+          const branchDisplay = branch.length > 15 ? branch.slice(0, 12) + '...' : branch;
           
           const row = [
             project.id.toString().padEnd(idWidth),
             project.name.padEnd(nameWidth),
             pathDisplay.padEnd(pathWidth),
+            branchDisplay.padEnd(branchWidth),
             portStr.padEnd(portsWidth),
             tests.length.toString().padEnd(testsWidth),
             lastScanned.padEnd(scannedWidth),
@@ -2031,11 +2049,268 @@ program
     }
   });
 
+// Workspace commands
+const workspaceCmd = program
+  .command('workspace')
+  .alias('ws')
+  .description('Manage workspaces');
+
+workspaceCmd
+  .command('list')
+  .description('List all workspaces')
+  .action(async () => {
+    try {
+      await ensureAPIServerRunning(true);
+      const response = await fetch('http://localhost:3001/api/workspaces');
+      if (!response.ok) throw new Error('Failed to fetch workspaces');
+      const workspaces = await response.json();
+      if (workspaces.length === 0) {
+        console.log('No workspaces tracked yet.');
+        return;
+      }
+      console.log(`\nWorkspaces (${workspaces.length}):\n`);
+      workspaces.forEach((ws: any) => {
+        console.log(`${ws.id}. ${ws.name}`);
+        console.log(`   File: ${ws.workspace_file_path}`);
+        if (ws.description) console.log(`   Description: ${ws.description}`);
+        console.log('');
+      });
+    } catch (error) {
+      console.error('Error listing workspaces:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+workspaceCmd
+  .command('add')
+  .description('Import workspace from .code-workspace file')
+  .argument('<path>', 'Path to .code-workspace file')
+  .action(async (filePath: string) => {
+    try {
+      await ensureAPIServerRunning(true);
+      const resolvedPath = path.resolve(filePath);
+      if (!fs.existsSync(resolvedPath)) {
+        console.error(`Error: Workspace file not found: ${resolvedPath}`);
+        process.exit(1);
+      }
+      const response = await fetch('http://localhost:3001/api/workspaces/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_file_path: resolvedPath }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to import workspace');
+      }
+      const workspace = await response.json();
+      console.log(`✓ Imported workspace: ${workspace.name}`);
+    } catch (error) {
+      console.error('Error importing workspace:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+workspaceCmd
+  .command('create')
+  .description('Create a new workspace')
+  .argument('<name>', 'Workspace name')
+  .option('-o, --output <path>', 'Output directory for workspace file', process.cwd())
+  .option('-p, --projects <paths>', 'Comma-separated project paths to include')
+  .action(async (name: string, options: { output?: string; projects?: string }) => {
+    try {
+      await ensureAPIServerRunning(true);
+      const outputPath = options.output || process.cwd();
+      const projectPaths = options.projects ? options.projects.split(',').map(p => p.trim()) : [];
+      const response = await fetch('http://localhost:3001/api/workspaces/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          output_path: outputPath,
+          projects: projectPaths,
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create workspace');
+      }
+      const workspace = await response.json();
+      console.log(`✓ Created workspace: ${workspace.name}`);
+      console.log(`  File: ${workspace.workspace_file_path}`);
+    } catch (error) {
+      console.error('Error creating workspace:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+workspaceCmd
+  .command('remove')
+  .description('Remove a workspace')
+  .argument('<id|name>', 'Workspace ID or name')
+  .option('-f, --force', 'Skip confirmation')
+  .action(async (identifier: string, options: { force?: boolean }) => {
+    try {
+      await ensureAPIServerRunning(true);
+      const response = await fetch('http://localhost:3001/api/workspaces');
+      if (!response.ok) throw new Error('Failed to fetch workspaces');
+      const workspaces = await response.json();
+      const workspace = workspaces.find((w: any) => 
+        w.id.toString() === identifier || w.name === identifier
+      );
+      if (!workspace) {
+        console.error(`Error: Workspace not found: ${identifier}`);
+        process.exit(1);
+      }
+      if (!options.force) {
+        const inquirer = (await import('inquirer')).default;
+        const answer = await inquirer.prompt([{
+          type: 'confirm',
+          name: 'confirm',
+          message: `Remove workspace "${workspace.name}"?`,
+          default: false,
+        }]);
+        if (!answer.confirm) {
+          console.log('Cancelled.');
+          return;
+        }
+      }
+      const deleteResponse = await fetch(`http://localhost:3001/api/workspaces/${workspace.id}`, {
+        method: 'DELETE',
+      });
+      if (!deleteResponse.ok) throw new Error('Failed to remove workspace');
+      console.log(`✓ Removed workspace: ${workspace.name}`);
+    } catch (error) {
+      console.error('Error removing workspace:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+workspaceCmd
+  .command('open')
+  .description('Open workspace in editor')
+  .argument('<id|name>', 'Workspace ID or name')
+  .action(async (identifier: string) => {
+    try {
+      await ensureAPIServerRunning(true);
+      const response = await fetch('http://localhost:3001/api/workspaces');
+      if (!response.ok) throw new Error('Failed to fetch workspaces');
+      const workspaces = await response.json();
+      const workspace = workspaces.find((w: any) => 
+        w.id.toString() === identifier || w.name === identifier
+      );
+      if (!workspace) {
+        console.error(`Error: Workspace not found: ${identifier}`);
+        process.exit(1);
+      }
+      if (!fs.existsSync(workspace.workspace_file_path)) {
+        console.error(`Error: Workspace file not found: ${workspace.workspace_file_path}`);
+        process.exit(1);
+      }
+      const { spawn } = require('child_process');
+      const corePath = path.join(__dirname, '..', '..', 'core', 'dist', 'settings');
+      const localCorePath = path.join(__dirname, '..', '..', '..', 'core', 'dist', 'settings');
+      let settings: any;
+      try {
+        settings = require(corePath);
+      } catch {
+        try {
+          settings = require(localCorePath);
+        } catch {
+          console.error('Error: Could not load settings');
+          process.exit(1);
+        }
+      }
+      const editorSettings = settings.getEditorSettings();
+      let command: string;
+      if (editorSettings.type === 'custom' && editorSettings.customPath) {
+        command = editorSettings.customPath;
+      } else {
+        command = editorSettings.type === 'cursor' ? 'cursor' : editorSettings.type === 'windsurf' ? 'windsurf' : 'code';
+      }
+      spawn(command, [workspace.workspace_file_path], {
+        detached: true,
+        stdio: 'ignore',
+      }).unref();
+      console.log(`✓ Opening workspace "${workspace.name}" in ${editorSettings.type || 'editor'}...`);
+    } catch (error) {
+      console.error('Error opening workspace:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Backup commands
+program
+  .command('backup')
+  .description('Create a backup of PROJAX data')
+  .argument('[path]', 'Output directory (default: current directory)')
+  .action(async (outputPath?: string) => {
+    try {
+      await ensureAPIServerRunning(true);
+      const targetPath = outputPath ? path.resolve(outputPath) : process.cwd();
+      const response = await fetch('http://localhost:3001/api/backup/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ output_path: targetPath }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create backup');
+      }
+      const result = await response.json();
+      console.log(`✓ Backup created: ${result.backup_path}`);
+    } catch (error) {
+      console.error('Error creating backup:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('restore')
+  .description('Restore PROJAX data from backup')
+  .argument('<file>', 'Path to .pbz backup file')
+  .option('-f, --force', 'Skip confirmation')
+  .action(async (backupPath: string, options: { force?: boolean }) => {
+    try {
+      await ensureAPIServerRunning(true);
+      const resolvedPath = path.resolve(backupPath);
+      if (!fs.existsSync(resolvedPath)) {
+        console.error(`Error: Backup file not found: ${resolvedPath}`);
+        process.exit(1);
+      }
+      if (!options.force) {
+        const inquirer = (await import('inquirer')).default;
+        const answer = await inquirer.prompt([{
+          type: 'confirm',
+          name: 'confirm',
+          message: 'This will overwrite your current PROJAX data. Continue?',
+          default: false,
+        }]);
+        if (!answer.confirm) {
+          console.log('Cancelled.');
+          return;
+        }
+      }
+      const response = await fetch('http://localhost:3001/api/backup/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backup_path: resolvedPath }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to restore backup');
+      }
+      console.log('✓ Backup restored successfully');
+    } catch (error) {
+      console.error('Error restoring backup:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
 // Handle script execution before parsing
 // Check if first argument is not a known command
 (async () => {
   const args = process.argv.slice(2);
-  const knownCommands = ['prxi', 'i', 'add', 'list', 'scan', 'remove', 'rn', 'rename', 'cd', 'pwd', 'run', 'ps', 'stop', 'web', 'desktop', 'ui', 'scripts', 'scan-ports', 'api', 'docs', 'vscode-extension', 'extension', 'ext', 'desc', 'description', 'tags', 'open', 'files', 'urls', '--help', '-h', '--version', '-V'];
+  const knownCommands = ['prxi', 'i', 'add', 'list', 'scan', 'remove', 'rn', 'rename', 'cd', 'pwd', 'run', 'ps', 'stop', 'web', 'desktop', 'ui', 'scripts', 'scan-ports', 'api', 'docs', 'vscode-extension', 'extension', 'ext', 'desc', 'description', 'tags', 'open', 'files', 'urls', 'workspace', 'ws', 'backup', 'restore', '--help', '-h', '--version', '-V'];
 
   // If we have at least 1 argument and first is not a known command, treat as project identifier
   if (args.length >= 1 && !knownCommands.includes(args[0])) {

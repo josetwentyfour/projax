@@ -1,34 +1,16 @@
-.settings-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
-}
-
-.settings-modal {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
+.settings-container {
+  max-width: 800px;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-lg);
 }
 
 .settings-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem;
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -37,33 +19,18 @@
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
+  letter-spacing: 0.3px;
 }
 
-.settings-close-btn {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 24px;
-  cursor: pointer;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all 0.15s ease;
-}
-
-.settings-close-btn:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
+.settings-header .btn {
+  padding: 0.5rem 1rem;
+  font-size: 13px;
 }
 
 .settings-content {
-  padding: 1.5rem;
-  overflow-y: auto;
   flex: 1;
+  overflow-y: auto;
+  padding-right: 1rem;
 }
 
 .settings-section {
@@ -125,10 +92,16 @@
 
 .settings-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 0.75rem;
-  padding: 1.5rem;
+  padding-top: 1.5rem;
+  margin-top: 1.5rem;
   border-top: 1px solid var(--border-color);
+}
+
+.settings-footer .btn {
+  padding: 0.5rem 1.5rem;
+  font-size: 13px;
 }
 
 .loading-state {

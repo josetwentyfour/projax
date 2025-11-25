@@ -118,6 +118,24 @@
         "command": "projax.openSettings",
         "title": "Open Settings",
         "category": "PROJAX"
+      },
+      {
+        "command": "projax.openWorkspace",
+        "title": "Open Workspace from PROJAX",
+        "category": "PROJAX",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "projax.createBackup",
+        "title": "Create PROJAX Backup",
+        "category": "PROJAX",
+        "icon": "$(save)"
+      },
+      {
+        "command": "projax.restoreBackup",
+        "title": "Restore PROJAX from Backup",
+        "category": "PROJAX",
+        "icon": "$(file-symlink-directory)"
       }
     ],
     "configuration": {

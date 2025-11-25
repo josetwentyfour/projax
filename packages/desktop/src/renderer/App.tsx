@@ -12,6 +12,11 @@ import Settings from './components/Settings';
 import Titlebar from './components/Titlebar';
 import StatusBar from './components/StatusBar';
 import Terminal from './components/Terminal';
+import TabBar from './components/TabBar';
+import WorkspaceList from './components/WorkspaceList';
+import WorkspaceDetails from './components/WorkspaceDetails';
+import AddWorkspaceModal from './components/AddWorkspaceModal';
+import WorkspaceSearch, { WorkspaceSortType } from './components/WorkspaceSearch';
 import './App.css';
 
 declare global {
@@ -39,18 +44,41 @@ function App() {
     scriptName: string;
     projectName: string;
   } | null>(null);
+  const [activeTab, setActiveTab] = useState<'projects' | 'workspaces'>('projects');
+  const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<any | null>(null);
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
+  const [showAddWorkspaceModal, setShowAddWorkspaceModal] = useState(false);
+  const [gitBranches, setGitBranches] = useState<Map<number, string | null>>(new Map());
+  const [workspaceProjectCounts, setWorkspaceProjectCounts] = useState<Map<number, number>>(new Map());
+  const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState('');
+  const [workspaceSortType, setWorkspaceSortType] = useState<WorkspaceSortType>('name-asc');
+
+  // Clear project selection when switching tabs
+  useEffect(() => {
+    setSelectedProject(null);
+  }, [activeTab]);
 
   useEffect(() => {
     loadProjects();
+    loadWorkspaces();
     loadRunningProcesses();
     
-    // Refresh running processes every 5 seconds
+    // Refresh running processes and git branches every 5 seconds
     const interval = setInterval(() => {
       loadRunningProcesses();
+      updateGitBranches();
     }, 5000);
     
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    // Update git branches when projects change
+    if (projects.length > 0) {
+      updateGitBranches();
+    }
+  }, [projects]);
 
 
   const loadProjects = async () => {
@@ -76,6 +104,123 @@ function App() {
       setRunningProcesses(processes);
     } catch (error) {
       console.error('Error loading running processes:', error);
+    }
+  };
+
+  const loadWorkspaces = async () => {
+    try {
+      setLoadingWorkspaces(true);
+      // Try common API ports
+      const ports = [38124, 38125, 38126, 38127, 38128, 3001];
+      let apiBaseUrl = '';
+      
+      for (const port of ports) {
+        try {
+          const response = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(500) });
+          if (response.ok) {
+            apiBaseUrl = `http://localhost:${port}/api`;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+      
+      if (!apiBaseUrl) {
+        setLoadingWorkspaces(false);
+        return;
+      }
+      
+      const response = await fetch(`${apiBaseUrl}/workspaces`);
+      if (response.ok) {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const ws = await response.json();
+          setWorkspaces(ws);
+          
+          // Load project counts for each workspace
+          const counts = new Map<number, number>();
+          await Promise.all(
+            ws.map(async (workspace: any) => {
+              try {
+                const projectsResponse = await fetch(`${apiBaseUrl}/workspaces/${workspace.id}/projects`);
+                if (projectsResponse.ok) {
+                  const projects = await projectsResponse.json();
+                  counts.set(workspace.id, projects.length);
+                }
+              } catch (error) {
+                console.error(`Error loading projects for workspace ${workspace.id}:`, error);
+              }
+            })
+          );
+          setWorkspaceProjectCounts(counts);
+        } else {
+          const text = await response.text();
+          console.error('API returned non-JSON response:', text.substring(0, 200));
+          throw new Error('API server returned invalid response (not JSON)');
+        }
+      } else {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const error = await response.json();
+          console.error('API error:', error);
+        } else {
+          const text = await response.text();
+          console.error('API error (non-JSON):', text.substring(0, 200));
+        }
+      }
+    } catch (error) {
+      console.error('Error loading workspaces:', error);
+    } finally {
+      setLoadingWorkspaces(false);
+    }
+  };
+
+  const updateGitBranches = async () => {
+    try {
+      const branches = new Map<number, string | null>();
+      // Try common API ports
+      const ports = [38124, 38125, 38126, 38127, 38128, 3001];
+      let apiBaseUrl = '';
+      
+      // Find working API port
+      for (const port of ports) {
+        try {
+          const response = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(500) });
+          if (response.ok) {
+            apiBaseUrl = `http://localhost:${port}/api`;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+      
+      if (!apiBaseUrl) {
+        // If no API found, set all to null
+        for (const project of projects) {
+          branches.set(project.id, null);
+        }
+        setGitBranches(branches);
+        return;
+      }
+      
+      for (const project of projects) {
+        try {
+          const response = await fetch(`${apiBaseUrl}/projects/${project.id}/git-branch`);
+          if (response.ok) {
+            const data = await response.json();
+            branches.set(project.id, data.branch);
+          } else {
+            branches.set(project.id, null);
+          }
+        } catch {
+          branches.set(project.id, null);
+        }
+      }
+      setGitBranches(branches);
+    } catch (error) {
+      console.error('Error updating git branches:', error);
     }
   };
 
@@ -172,6 +317,42 @@ function App() {
     return sorted;
   }, [projects, searchQuery, filterType, sortType, runningProcesses]);
 
+  const filteredWorkspaces = useMemo(() => {
+    let filtered = workspaces;
+
+    // Apply search filter
+    if (workspaceSearchQuery.trim()) {
+      const query = workspaceSearchQuery.toLowerCase().trim();
+      filtered = workspaces.filter((workspace: any) => {
+        return (
+          workspace.name.toLowerCase().includes(query) ||
+          (workspace.description && workspace.description.toLowerCase().includes(query)) ||
+          workspace.workspace_file_path.toLowerCase().includes(query)
+        );
+      });
+    }
+
+    // Apply sorting
+    filtered = [...filtered].sort((a, b) => {
+      switch (workspaceSortType) {
+        case 'name-asc':
+          return a.name.localeCompare(b.name);
+        case 'name-desc':
+          return b.name.localeCompare(a.name);
+        case 'recent':
+          return (b.id || 0) - (a.id || 0); // Assuming higher ID = more recent
+        case 'projects':
+          const aCount = workspaceProjectCounts.get(a.id) || 0;
+          const bCount = workspaceProjectCounts.get(b.id) || 0;
+          return bCount - aCount; // Most projects first
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [workspaces, workspaceSearchQuery, workspaceSortType, workspaceProjectCounts]);
+
   // Keyboard shortcuts and navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -265,13 +446,23 @@ function App() {
           >
             Settings
           </button>
-          <button
-            type="button"
-            onClick={() => setShowAddModal(true)}
-            className="btn-link btn-link-primary"
-          >
-            + Add Project
-          </button>
+          {activeTab === 'projects' ? (
+            <button
+              type="button"
+              onClick={() => setShowAddModal(true)}
+              className="btn-link btn-link-primary"
+            >
+              + Add Project
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAddWorkspaceModal(true)}
+              className="btn-link btn-link-primary"
+            >
+              + Add Workspace
+            </button>
+          )}
         </div>
       </Titlebar>
 
@@ -301,40 +492,123 @@ function App() {
           }}
         >
           <aside className="sidebar" style={{ width: '100%', height: '100%' }}>
-            <ProjectSearch 
-              onSearchChange={handleSearchChange} 
-              onSortChange={setSortType}
-              searchInputRef={searchInputRef}
-            />
-            <ProjectList
-              projects={filteredProjects}
-              selectedProject={selectedProject}
-              onSelectProject={setSelectedProject}
-              loading={loading}
-              runningProcesses={runningProcesses}
-              keyboardFocusedIndex={keyboardFocusedIndex}
-              onKeyboardFocusChange={setKeyboardFocusedIndex}
-            />
+            <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+            {activeTab === 'projects' ? (
+              <>
+                <ProjectSearch 
+                  onSearchChange={handleSearchChange} 
+                  onSortChange={setSortType}
+                  searchInputRef={searchInputRef}
+                />
+                <ProjectList
+                  projects={filteredProjects}
+                  selectedProject={selectedProject}
+                  onSelectProject={setSelectedProject}
+                  loading={loading}
+                  runningProcesses={runningProcesses}
+                  keyboardFocusedIndex={keyboardFocusedIndex}
+                  onKeyboardFocusChange={setKeyboardFocusedIndex}
+                  gitBranches={gitBranches}
+                />
+              </>
+            ) : (
+              <>
+                <WorkspaceSearch 
+                  onSearchChange={setWorkspaceSearchQuery}
+                  onSortChange={setWorkspaceSortType}
+                />
+                <WorkspaceList
+                  workspaces={filteredWorkspaces}
+                  selectedWorkspace={selectedWorkspace}
+                  onSelectWorkspace={(workspace) => {
+                    // Always clear project first to ensure clean state
+                    setSelectedProject(null);
+                    // Use a small delay to ensure project is cleared before setting workspace
+                    setTimeout(() => {
+                      setSelectedWorkspace(workspace);
+                    }, 0);
+                  }}
+                  loading={loadingWorkspaces}
+                  keyboardFocusedIndex={keyboardFocusedIndex}
+                  onKeyboardFocusChange={setKeyboardFocusedIndex}
+                  workspaceProjects={workspaceProjectCounts}
+                />
+              </>
+            )}
           </aside>
         </Rnd>
 
         <main className="main-content">
-          {selectedProject ? (
+          {showSettings ? (
+            <Settings onClose={() => setShowSettings(false)} />
+          ) : selectedProject ? (
             <ProjectDetails
               project={selectedProject}
+              workspace={activeTab === 'workspaces' ? selectedWorkspace : undefined}
               onProjectUpdate={(updated) => {
                 setSelectedProject(updated);
                 loadProjects();
               }}
               onRemoveProject={handleRemoveProject}
               onOpenTerminal={handleOpenTerminal}
+              onNavigateBack={activeTab === 'workspaces' && selectedWorkspace ? () => {
+                setSelectedProject(null);
+              } : undefined}
             />
-          ) : (
-            <div className="empty-state">
-              <h2>Select a project to view details</h2>
-              <p>Choose a project from the sidebar to see its test files and information.</p>
-            </div>
-          )}
+          ) : activeTab === 'workspaces' && selectedWorkspace ? (
+            <WorkspaceDetails
+              workspace={selectedWorkspace}
+              onWorkspaceUpdate={(updated) => {
+                setSelectedWorkspace(updated);
+                loadWorkspaces();
+              }}
+              onRemoveWorkspace={async (id) => {
+                  try {
+                    // Try to find API port
+                    const ports = [38124, 38125, 38126, 38127, 38128, 3001];
+                    let apiBaseUrl = '';
+                    for (const port of ports) {
+                      try {
+                        const response = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(500) });
+                        if (response.ok) {
+                          apiBaseUrl = `http://localhost:${port}/api`;
+                          break;
+                        }
+                      } catch {
+                        continue;
+                      }
+                    }
+                    if (apiBaseUrl) {
+                      await fetch(`${apiBaseUrl}/workspaces/${id}`, { method: 'DELETE' });
+                    }
+                    if (selectedWorkspace?.id === id) {
+                      setSelectedWorkspace(null);
+                    }
+                    await loadWorkspaces();
+                  } catch (error) {
+                    console.error('Error removing workspace:', error);
+                    alert('Failed to remove workspace');
+                  }
+                }}
+                onOpenWorkspace={async (workspace) => {
+                  try {
+                    await window.electronAPI.openWorkspace(workspace.id);
+                  } catch (error) {
+                    console.error('Error opening workspace:', error);
+                    alert(`Failed to open workspace: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                  }
+                }}
+                onSelectProject={(project) => {
+                  setSelectedProject(project);
+                }}
+              />
+            ) : (
+              <div className="empty-state">
+                <h2>Select {activeTab === 'projects' ? 'a project' : 'a workspace'} to view details</h2>
+                <p>Choose {activeTab === 'projects' ? 'a project' : 'a workspace'} from the sidebar to see its information.</p>
+              </div>
+            )
+          }
         </main>
 
         {terminalProcess && (
@@ -397,8 +671,16 @@ function App() {
         />
       )}
 
-      {showSettings && (
-        <Settings onClose={() => setShowSettings(false)} />
+      {showAddWorkspaceModal && (
+        <AddWorkspaceModal
+          onAdd={async (workspace) => {
+            await loadWorkspaces();
+            setShowAddWorkspaceModal(false);
+            setSelectedWorkspace(workspace);
+          }}
+          onClose={() => setShowAddWorkspaceModal(false)}
+          existingProjects={projects}
+        />
       )}
 
       <StatusBar />

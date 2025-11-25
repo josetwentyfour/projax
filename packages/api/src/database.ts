@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
-import { DatabaseSchema, Project, Test, JenkinsJob, ProjectPort, TestResult } from './types';
+import { DatabaseSchema, Project, Test, JenkinsJob, ProjectPort, TestResult, Workspace, WorkspaceProject, ProjectSettings } from './types';
 
 const defaultData: DatabaseSchema = {
   projects: [],
@@ -10,6 +10,9 @@ const defaultData: DatabaseSchema = {
   project_ports: [],
   test_results: [],
   settings: [],
+  workspaces: [],
+  workspace_projects: [],
+  project_settings: [],
 };
 
 class JSONDatabase {
@@ -51,7 +54,7 @@ class JSONDatabase {
   private migrateData(): void {
     let needsWrite = false;
     
-    // Ensure all projects have the framework, description, and tags fields
+    // Ensure all projects have the framework, description, tags, and git_branch fields
     if (this.data.projects) {
       for (const project of this.data.projects) {
         if (project.framework === undefined) {
@@ -64,6 +67,10 @@ class JSONDatabase {
         }
         if (project.tags === undefined) {
           project.tags = [];
+          needsWrite = true;
+        }
+        if (project.git_branch === undefined) {
+          project.git_branch = null;
           needsWrite = true;
         }
       }
@@ -88,6 +95,18 @@ class JSONDatabase {
     }
     if (!this.data.settings) {
       this.data.settings = [];
+      needsWrite = true;
+    }
+    if (!this.data.workspaces) {
+      this.data.workspaces = [];
+      needsWrite = true;
+    }
+    if (!this.data.workspace_projects) {
+      this.data.workspace_projects = [];
+      needsWrite = true;
+    }
+    if (!this.data.project_settings) {
+      this.data.project_settings = [];
       needsWrite = true;
     }
     
@@ -471,6 +490,157 @@ class JSONDatabase {
     for (const setting of this.data.settings) {
       settings[setting.key] = setting.value;
     }
+    return settings;
+  }
+
+  // Workspace operations
+  addWorkspace(name: string, workspaceFilePath: string, description: string | null = null, tags: string[] = []): Workspace {
+    const workspaces = this.data.workspaces;
+    
+    // Check if workspace with same file path already exists
+    const existing = workspaces.find(w => w.workspace_file_path === workspaceFilePath);
+    if (existing) {
+      throw new Error('Workspace with this file path already exists');
+    }
+    
+    const newId = workspaces.length > 0 
+      ? Math.max(...workspaces.map(w => w.id)) + 1 
+      : 1;
+    
+    const workspace: Workspace = {
+      id: newId,
+      name,
+      workspace_file_path: workspaceFilePath,
+      description,
+      tags: tags || [],
+      created_at: Math.floor(Date.now() / 1000),
+      last_opened: null,
+    };
+    
+    workspaces.push(workspace);
+    this.write();
+    return workspace;
+  }
+
+  getWorkspace(id: number): Workspace | null {
+    return this.data.workspaces.find(w => w.id === id) || null;
+  }
+
+  getAllWorkspaces(): Workspace[] {
+    return [...this.data.workspaces];
+  }
+
+  updateWorkspace(id: number, updates: Partial<Omit<Workspace, 'id' | 'created_at'>>): Workspace {
+    const workspace = this.data.workspaces.find(w => w.id === id);
+    if (!workspace) {
+      throw new Error('Workspace not found');
+    }
+    
+    Object.assign(workspace, updates);
+    this.write();
+    return workspace;
+  }
+
+  removeWorkspace(id: number): void {
+    const index = this.data.workspaces.findIndex(w => w.id === id);
+    if (index === -1) {
+      throw new Error('Workspace not found');
+    }
+    
+    // Remove associated workspace projects
+    this.data.workspace_projects = this.data.workspace_projects.filter(wp => wp.workspace_id !== id);
+    
+    this.data.workspaces.splice(index, 1);
+    this.write();
+  }
+
+  // WorkspaceProject operations
+  addProjectToWorkspace(workspaceId: number, projectPath: string): WorkspaceProject {
+    const workspaceProjects = this.data.workspace_projects.filter(wp => wp.workspace_id === workspaceId);
+    
+    // Check if project already in workspace
+    const existing = workspaceProjects.find(wp => wp.project_path === projectPath);
+    if (existing) {
+      throw new Error('Project already in workspace');
+    }
+    
+    const newId = this.data.workspace_projects.length > 0
+      ? Math.max(...this.data.workspace_projects.map(wp => wp.id)) + 1
+      : 1;
+    
+    const maxOrder = workspaceProjects.length > 0
+      ? Math.max(...workspaceProjects.map(wp => wp.order))
+      : -1;
+    
+    const workspaceProject: WorkspaceProject = {
+      id: newId,
+      workspace_id: workspaceId,
+      project_path: projectPath,
+      order: maxOrder + 1,
+      created_at: Math.floor(Date.now() / 1000),
+    };
+    
+    this.data.workspace_projects.push(workspaceProject);
+    this.write();
+    return workspaceProject;
+  }
+
+  getWorkspaceProjects(workspaceId: number): WorkspaceProject[] {
+    return this.data.workspace_projects
+      .filter(wp => wp.workspace_id === workspaceId)
+      .sort((a, b) => a.order - b.order);
+  }
+
+  removeProjectFromWorkspace(workspaceId: number, projectPath: string): void {
+    const index = this.data.workspace_projects.findIndex(
+      wp => wp.workspace_id === workspaceId && wp.project_path === projectPath
+    );
+    if (index === -1) {
+      throw new Error('Project not found in workspace');
+    }
+    
+    this.data.workspace_projects.splice(index, 1);
+    this.write();
+  }
+
+  updateWorkspaceProjectOrder(workspaceId: number, projectPath: string, newOrder: number): void {
+    const workspaceProject = this.data.workspace_projects.find(
+      wp => wp.workspace_id === workspaceId && wp.project_path === projectPath
+    );
+    if (!workspaceProject) {
+      throw new Error('Project not found in workspace');
+    }
+    
+    workspaceProject.order = newOrder;
+    this.write();
+  }
+
+  // ProjectSettings operations
+  getProjectSettings(projectId: number): ProjectSettings | null {
+    return this.data.project_settings.find(ps => ps.project_id === projectId) || null;
+  }
+
+  updateProjectSettings(projectId: number, updates: Partial<Omit<ProjectSettings, 'id' | 'project_id' | 'created_at'>>): ProjectSettings {
+    let settings = this.data.project_settings.find(ps => ps.project_id === projectId);
+    
+    if (!settings) {
+      // Create new settings if they don't exist
+      const newId = this.data.project_settings.length > 0
+        ? Math.max(...this.data.project_settings.map(ps => ps.id)) + 1
+        : 1;
+      
+      settings = {
+        id: newId,
+        project_id: projectId,
+        script_sort_order: 'default',
+        updated_at: Math.floor(Date.now() / 1000),
+      };
+      this.data.project_settings.push(settings);
+    }
+    
+    Object.assign(settings, updates);
+    settings.updated_at = Math.floor(Date.now() / 1000);
+    this.write();
     return settings;
   }
 }

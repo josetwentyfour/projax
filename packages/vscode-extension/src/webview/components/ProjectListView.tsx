@@ -17,6 +17,9 @@ const ProjectListView: React.FC<ProjectListViewProps> = ({ vscode }) => {
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<'projects' | 'workspaces'>('projects');
+  const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [gitBranches, setGitBranches] = useState<Map<number, string | null>>(new Map());
   const menuRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -61,10 +64,57 @@ const ProjectListView: React.FC<ProjectListViewProps> = ({ vscode }) => {
     window.addEventListener('message', handleMessage);
     vscode.postMessage({ command: 'refreshProjects' });
 
+    // Poll for git branches and workspaces
+    const updateGitBranches = async () => {
+      try {
+        const branches = new Map<number, string | null>();
+        for (const project of projects) {
+          try {
+            const response = await fetch(`http://localhost:3001/api/projects/${project.id}/git-branch`);
+            if (response.ok) {
+              const data = await response.json();
+              branches.set(project.id, data.branch);
+            }
+          } catch {
+            branches.set(project.id, null);
+          }
+        }
+        setGitBranches(branches);
+      } catch (error) {
+        console.error('Error updating git branches:', error);
+      }
+    };
+
+    const loadWorkspaces = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/workspaces');
+        if (response.ok) {
+          const ws = await response.json();
+          setWorkspaces(ws);
+        }
+      } catch (error) {
+        console.error('Error loading workspaces:', error);
+      }
+    };
+
+    if (projects.length > 0) {
+      updateGitBranches();
+    }
+    loadWorkspaces();
+
+    // Poll every 5 seconds
+    const interval = setInterval(() => {
+      if (projects.length > 0) {
+        updateGitBranches();
+      }
+      loadWorkspaces();
+    }, 5000);
+
     return () => {
       window.removeEventListener('message', handleMessage);
+      clearInterval(interval);
     };
-  }, [vscode]);
+  }, [vscode, projects]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -187,7 +237,24 @@ const ProjectListView: React.FC<ProjectListViewProps> = ({ vscode }) => {
 
   return (
     <div className="project-list-container">
-      <div className="project-search">
+      <div className="tab-bar">
+        <button
+          className={`tab-button ${activeTab === 'projects' ? 'active' : ''}`}
+          onClick={() => setActiveTab('projects')}
+        >
+          Projects
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'workspaces' ? 'active' : ''}`}
+          onClick={() => setActiveTab('workspaces')}
+        >
+          Workspaces
+        </button>
+      </div>
+      
+      {activeTab === 'projects' ? (
+        <>
+          <div className="project-search">
         <div className="search-input-group" ref={menuRef}>
           <div className="search-input-wrapper">
             <input
@@ -253,6 +320,9 @@ const ProjectListView: React.FC<ProjectListViewProps> = ({ vscode }) => {
                   <h3 className="project-name">
                     {isCurrent && <span className="current-indicator">●</span>}
                     {project.name}
+                    {gitBranches.has(project.id) && gitBranches.get(project.id) && (
+                      <span className="git-branch-badge">{gitBranches.get(project.id)}</span>
+                    )}
                   </h3>
                 </div>
                 <p className="project-path">
@@ -270,6 +340,34 @@ const ProjectListView: React.FC<ProjectListViewProps> = ({ vscode }) => {
           })
         )}
       </div>
+      </>
+      ) : (
+        <div className="project-list">
+          {workspaces.length === 0 ? (
+            <div className="project-list-empty">
+              <p>No workspaces yet</p>
+            </div>
+          ) : (
+            workspaces.map((workspace) => (
+              <div
+                key={workspace.id}
+                className="project-item"
+                onClick={() => {
+                  vscode.postMessage({
+                    command: 'openWorkspace',
+                    workspace,
+                  });
+                }}
+              >
+                <div className="project-item-header">
+                  <h3 className="project-name">{workspace.name}</h3>
+                </div>
+                <p className="project-path">{workspace.workspace_file_path}</p>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 };

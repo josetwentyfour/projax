@@ -1,0 +1,69 @@
+.workspace-modal {
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.workspace-mode-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border-color, #30363d);
+}
+
+.mode-button {
+  flex: 1;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary, #8b949e);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.mode-button:hover {
+  color: var(--text-primary, #c9d1d9);
+}
+
+.mode-button.active {
+  color: var(--accent-cyan, #39c5cf);
+  border-bottom-color: var(--accent-cyan, #39c5cf);
+}
+
+.projects-selector {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color, #30363d);
+  border-radius: 4px;
+  padding: 8px;
+  background: var(--bg-secondary, #161b22);
+}
+
+.project-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.project-checkbox:hover {
+  background: var(--bg-hover, #21262d);
+}
+
+.project-checkbox input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.empty-state {
+  color: var(--text-secondary, #8b949e);
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
+}
+

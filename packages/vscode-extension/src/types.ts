@@ -8,6 +8,7 @@ export interface Project {
   last_scanned: number | null;
   created_at: number;
   tags?: string[];
+  git_branch?: string | null;
 }
 
 export interface Test {

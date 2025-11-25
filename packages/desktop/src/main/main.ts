@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as http from 'http';
 import { spawn, ChildProcess } from 'child_process';
 import { Tail } from 'tail';
 import {
@@ -52,13 +53,50 @@ if (!gotTheLock) {
         preload: path.join(__dirname, 'preload.js'),
         nodeIntegration: false,
         contextIsolation: true,
+        webSecurity: true,
       },
+      show: false, // Don't show until ready
+    });
+
+    // Show window when ready to prevent white screen flash
+    mainWindow.once('ready-to-show', () => {
+      mainWindow?.show();
     });
 
     // Load the app
     if (isDev) {
-      mainWindow.loadURL('http://localhost:7898');
-      mainWindow.webContents.openDevTools();
+      // Wait for Vite dev server to be ready before loading
+      const checkServerAndLoad = (retries = 10) => {
+        const req = http.get('http://localhost:7898', (res) => {
+          console.log('Vite dev server is ready!');
+          mainWindow?.loadURL('http://localhost:7898');
+          mainWindow?.webContents.openDevTools();
+        });
+        
+        req.on('error', (error) => {
+          if (retries > 0) {
+            console.log(`Vite dev server not ready (${retries} retries left), retrying in 1 second...`);
+            setTimeout(() => checkServerAndLoad(retries - 1), 1000);
+          } else {
+            console.error('Failed to connect to Vite dev server after multiple retries');
+            console.error('Make sure Vite is running on port 7898');
+            mainWindow?.loadURL('http://localhost:7898'); // Try anyway
+          }
+        });
+        
+        req.setTimeout(2000, () => {
+          req.destroy();
+          if (retries > 0) {
+            console.log(`Vite dev server timeout (${retries} retries left), retrying...`);
+            setTimeout(() => checkServerAndLoad(retries - 1), 1000);
+          } else {
+            console.error('Failed to connect to Vite dev server - timeout');
+            mainWindow?.loadURL('http://localhost:7898'); // Try anyway
+          }
+        });
+      };
+      
+      checkServerAndLoad();
     } else {
       // Try bundled renderer path first (when bundled in CLI: dist/electron/renderer/index.html)
       // Then try local dev path (packages/desktop/dist/renderer/index.html)
@@ -95,6 +133,54 @@ if (!gotTheLock) {
     mainWindow.on('closed', () => {
       mainWindow = null;
     });
+
+    // Handle page load errors
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+      console.error('Failed to load:', validatedURL, errorCode, errorDescription);
+      if (isDev && validatedURL === 'http://localhost:7898/') {
+        console.log('Retrying to load Vite dev server...');
+        setTimeout(() => {
+          mainWindow?.loadURL('http://localhost:7898');
+        }, 2000);
+      }
+    });
+
+    // Log when page finishes loading
+    mainWindow.webContents.on('did-finish-load', () => {
+      console.log('Page loaded successfully');
+    });
+
+    // Log console messages from renderer
+    mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+      console.log(`[Renderer ${level}]:`, message, sourceId ? `(${sourceId}:${line})` : '');
+    });
+
+    // Log all console output from renderer
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (isMainFrame) {
+        console.error('Main frame failed to load:', {
+          errorCode,
+          errorDescription,
+          validatedURL,
+        });
+      }
+    });
+
+    // Add keyboard shortcut to reload in dev mode
+    if (isDev) {
+      mainWindow.webContents.on('before-input-event', (event, input) => {
+        // Cmd+R or Ctrl+R to reload
+        if ((input.control || input.meta) && input.key.toLowerCase() === 'r') {
+          event.preventDefault();
+          mainWindow?.reload();
+        }
+        // Cmd+Shift+R or Ctrl+Shift+R to hard reload
+        if ((input.control || input.meta) && input.shift && input.key.toLowerCase() === 'r') {
+          event.preventDefault();
+          mainWindow?.webContents.reloadIgnoringCache();
+        }
+      });
+    }
   }
 
   // Start API server
@@ -120,11 +206,18 @@ if (!gotTheLock) {
         return;
       }
 
-      console.log('Starting API server...');
+      console.log('Starting API server from:', apiPath);
+      // Kill any existing API server on the same port first
+      if (apiProcess) {
+        console.log('Killing existing API server...');
+        apiProcess.kill();
+        apiProcess = null;
+      }
       apiProcess = spawn('node', [apiPath], {
         detached: false,
         stdio: 'pipe',
         env: { ...process.env },
+        cwd: path.dirname(apiPath),
       });
 
       apiProcess.stdout?.on('data', (data) => {
@@ -138,6 +231,13 @@ if (!gotTheLock) {
       apiProcess.on('exit', (code) => {
         console.log(`API server exited with code ${code}`);
         apiProcess = null;
+        // Restart API server if it crashes (wait 2 seconds)
+        if (code !== 0) {
+          console.log('API server crashed, restarting in 2 seconds...');
+          setTimeout(() => {
+            startAPIServer();
+          }, 2000);
+        }
       });
     } catch (error) {
       console.error('Failed to start API server:', error);
@@ -568,8 +668,8 @@ ipcMain.handle('open-url', async (_, url: string) => {
 ipcMain.handle('open-in-editor', async (_, projectPath: string) => {
   // Try bundled path first (when bundled in CLI: dist/electron/main.js -> dist/core/settings)
   // Then try local dev path (packages/desktop/dist/main.js -> packages/core/dist/settings)
-  const bundledSettingsPath = path.join(__dirname, '..', 'core', 'settings');
-  const localSettingsPath = path.join(__dirname, '..', '..', '..', 'core', 'dist', 'settings');
+  const bundledSettingsPath = path.join(__dirname, 'core', 'settings');
+  const localSettingsPath = path.join(__dirname, '..', '..', 'core', 'dist', 'settings');
   
   let settingsPath: string;
   if (fs.existsSync(bundledSettingsPath + '.js')) {
@@ -612,6 +712,103 @@ ipcMain.handle('open-in-editor', async (_, projectPath: string) => {
   }).unref();
 });
 
+// Open workspace in editor
+ipcMain.handle('open-workspace', async (_, workspaceId: number) => {
+  try {
+    // Get workspace file path from API (ensures file exists)
+    const ports = [38124, 38125, 38126, 38127, 38128, 3001];
+    let apiBaseUrl = '';
+    
+    for (const port of ports) {
+      try {
+        const response = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(500) });
+        if (response.ok) {
+          apiBaseUrl = `http://localhost:${port}/api`;
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+    
+    if (!apiBaseUrl) {
+      throw new Error('API server not found');
+    }
+    
+    // Get workspace file path (this will generate it if needed)
+    const response = await fetch(`${apiBaseUrl}/workspaces/${workspaceId}/file-path`);
+    if (!response.ok) {
+      throw new Error('Failed to get workspace file path');
+    }
+    
+    const data = await response.json() as { workspace_file_path: string };
+    const workspace_file_path = data.workspace_file_path;
+    
+    if (!fs.existsSync(workspace_file_path)) {
+      throw new Error('Workspace file does not exist');
+    }
+    
+    // Open workspace file in editor (workspace files are opened with the workspace flag)
+    const bundledSettingsPath = path.join(__dirname, 'core', 'settings');
+    const localSettingsPath = path.join(__dirname, '..', '..', 'core', 'dist', 'settings');
+    
+    let settingsPath: string;
+    if (fs.existsSync(bundledSettingsPath + '.js')) {
+      settingsPath = bundledSettingsPath;
+    } else {
+      settingsPath = localSettingsPath;
+    }
+    
+    const { getEditorSettings } = require(settingsPath);
+    const editorSettings = getEditorSettings();
+    
+    let command: string;
+    let args: string[] = [];
+    
+    if (editorSettings.type === 'custom' && editorSettings.customPath) {
+      command = editorSettings.customPath;
+      // For custom editors, try workspace file as argument
+      args = [workspace_file_path];
+    } else {
+      switch (editorSettings.type) {
+        case 'vscode':
+        case 'cursor':
+        case 'windsurf':
+          // VS Code, Cursor, and Windsurf support opening workspace files directly
+          command = editorSettings.type === 'vscode' ? 'code' : editorSettings.type === 'cursor' ? 'cursor' : 'windsurf';
+          args = [workspace_file_path];
+          break;
+        case 'zed':
+          // Zed doesn't support workspace files, open the first project folder instead
+          const workspaceContent = JSON.parse(fs.readFileSync(workspace_file_path, 'utf-8'));
+          if (workspaceContent.folders && workspaceContent.folders.length > 0) {
+            const firstFolder = workspaceContent.folders[0];
+            const folderPath = path.isAbsolute(firstFolder.path) 
+              ? firstFolder.path 
+              : path.resolve(path.dirname(workspace_file_path), firstFolder.path);
+            command = 'zed';
+            args = [folderPath];
+          } else {
+            throw new Error('Workspace has no folders to open');
+          }
+          break;
+        default:
+          command = 'code';
+          args = [workspace_file_path];
+      }
+    }
+    
+    const { spawn } = require('child_process');
+    spawn(command, args, {
+      detached: true,
+      stdio: 'ignore',
+    }).unref();
+  } catch (error) {
+    console.error('Error opening workspace:', error);
+    throw error;
+  }
+});
+
 // Open project directory in file manager
 ipcMain.handle('open-in-files', async (_, projectPath: string) => {
   try {
@@ -627,8 +824,8 @@ ipcMain.handle('open-in-files', async (_, projectPath: string) => {
 ipcMain.handle('get-settings', async () => {
   try {
     // Load settings module directly
-    const bundledSettingsPath = path.join(__dirname, '..', 'core', 'settings');
-    const localSettingsPath = path.join(__dirname, '..', '..', '..', 'core', 'dist', 'settings');
+    const bundledSettingsPath = path.join(__dirname, 'core', 'settings');
+    const localSettingsPath = path.join(__dirname, '..', '..', 'core', 'dist', 'settings');
     
     let settingsPath: string;
     if (fs.existsSync(bundledSettingsPath + '.js')) {
@@ -652,8 +849,8 @@ ipcMain.handle('save-settings', async (_, settings: {
 }) => {
   try {
     // Load settings module directly
-    const bundledSettingsPath = path.join(__dirname, '..', 'core', 'settings');
-    const localSettingsPath = path.join(__dirname, '..', '..', '..', 'core', 'dist', 'settings');
+    const bundledSettingsPath = path.join(__dirname, 'core', 'settings');
+    const localSettingsPath = path.join(__dirname, '..', '..', 'core', 'dist', 'settings');
     
     let settingsPath: string;
     if (fs.existsSync(bundledSettingsPath + '.js')) {
@@ -767,5 +964,134 @@ ipcMain.handle('unwatch-process-output', async (_, pid: number) => {
     return { success: true };
   }
   return { success: false };
+});
+
+// Workspace handlers
+ipcMain.handle('get-workspaces', async () => {
+  try {
+    const response = await fetch('http://localhost:3001/api/workspaces');
+    if (!response.ok) throw new Error('Failed to fetch workspaces');
+    return await response.json();
+  } catch (error) {
+    console.error('Error getting workspaces:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('add-workspace', async (_, workspace: any) => {
+  try {
+    const response = await fetch('http://localhost:3001/api/workspaces', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(workspace),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error((errorData as any).error || 'Failed to add workspace');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error adding workspace:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('remove-workspace', async (_, workspaceId: number) => {
+  try {
+    const response = await fetch(`http://localhost:3001/api/workspaces/${workspaceId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to remove workspace');
+  } catch (error) {
+    console.error('Error removing workspace:', error);
+    throw error;
+  }
+});
+
+// Backup handlers
+ipcMain.handle('create-backup', async (_, outputPath: string) => {
+  try {
+    // Try to load from dist first, then src
+    const backupUtilsPath = path.join(__dirname, '..', '..', 'core', 'dist', 'backup-utils.js');
+    const backupUtilsSrcPath = path.join(__dirname, '..', '..', 'core', 'src', 'backup-utils.ts');
+    
+    let backupUtils;
+    if (fs.existsSync(backupUtilsPath)) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      backupUtils = require(backupUtilsPath);
+    } else if (fs.existsSync(backupUtilsSrcPath.replace('.ts', '.js'))) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      backupUtils = require(backupUtilsSrcPath.replace('.ts', '.js'));
+    } else {
+      throw new Error('Backup utils not found');
+    }
+    
+    const { createBackup } = backupUtils;
+    const backupPath = await createBackup(outputPath);
+    return { success: true, backup_path: backupPath };
+  } catch (error) {
+    console.error('Error creating backup:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('restore-backup', async (_, backupPath: string) => {
+  try {
+    // Try to load from dist first, then src
+    const backupUtilsPath = path.join(__dirname, '..', '..', 'core', 'dist', 'backup-utils.js');
+    const backupUtilsSrcPath = path.join(__dirname, '..', '..', 'core', 'src', 'backup-utils.ts');
+    
+    let backupUtils;
+    if (fs.existsSync(backupUtilsPath)) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      backupUtils = require(backupUtilsPath);
+    } else if (fs.existsSync(backupUtilsSrcPath.replace('.ts', '.js'))) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      backupUtils = require(backupUtilsSrcPath.replace('.ts', '.js'));
+    } else {
+      throw new Error('Backup utils not found');
+    }
+    
+    const { restoreBackup } = backupUtils;
+    await restoreBackup(backupPath);
+    return { success: true };
+  } catch (error) {
+    console.error('Error restoring backup:', error);
+    throw error;
+  }
+});
+
+// File dialog handlers
+ipcMain.handle('show-save-dialog', async (_, options: any) => {
+  if (!mainWindow) return { canceled: true };
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: options.title || 'Save File',
+    defaultPath: options.defaultPath,
+    filters: options.filters || [{ name: 'All Files', extensions: ['*'] }],
+  });
+  return result;
+});
+
+ipcMain.handle('show-open-dialog', async (_, options: any) => {
+  if (!mainWindow) return { canceled: true };
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: options.title || 'Open File',
+    defaultPath: options.defaultPath,
+    filters: options.filters || [{ name: 'All Files', extensions: ['*'] }],
+    properties: options.properties || ['openFile'],
+  });
+  return result;
+});
+
+ipcMain.handle('select-file', async (_, options: any) => {
+  if (!mainWindow) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: options.title || 'Select File',
+    defaultPath: options.defaultPath,
+    filters: options.filters || [{ name: 'All Files', extensions: ['*'] }],
+    properties: ['openFile'],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
 });
 

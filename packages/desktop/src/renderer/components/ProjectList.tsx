@@ -11,6 +11,7 @@ interface ProjectListProps {
   runningProcesses?: any[];
   keyboardFocusedIndex?: number;
   onKeyboardFocusChange?: (index: number) => void;
+  gitBranches?: Map<number, string | null>;
 }
 
 // Helper function to get display path
@@ -36,6 +37,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
   runningProcesses = [],
   keyboardFocusedIndex = -1,
   onKeyboardFocusChange,
+  gitBranches,
 }) => {
   if (loading) {
     return (
@@ -121,6 +123,9 @@ const ProjectList: React.FC<ProjectListProps> = ({
               <h3 className="project-name">
                 {hasRunningScripts && <span className="running-indicator-dot">●</span>}
                 {project.name}
+                {gitBranches && gitBranches.has(project.id) && gitBranches.get(project.id) && (
+                  <span className="git-branch-badge">{gitBranches.get(project.id)}</span>
+                )}
               </h3>
             </div>
             <p className="project-path">{project.description || getDisplayPath(project.path)}</p>

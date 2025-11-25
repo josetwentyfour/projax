@@ -2,6 +2,9 @@ export * from './database';
 export * from './detector';
 export * from './scanner';
 export * from './settings';
+export * from './git-utils';
+export * from './workspace-utils';
+export * from './backup-utils';
 export { getDatabaseManager } from './database';
 
 // Convenience functions for common operations

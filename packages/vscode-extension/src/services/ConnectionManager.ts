@@ -23,6 +23,7 @@ export interface ProjaxDataProvider {
   getAllTags(): Promise<string[]>;
   scanProject(id: number): Promise<{ project: Project; testsFound: number; tests: Test[] }>;
   scanAllProjects(): Promise<Array<{ project: Project; testsFound: number; tests: Test[] }>>;
+  getWorkspaces(): Promise<any[]>;
 }
 
 class APIDataProvider implements ProjaxDataProvider {
@@ -102,6 +103,11 @@ class APIDataProvider implements ProjaxDataProvider {
     );
     return response.data;
   }
+
+  async getWorkspaces(): Promise<any[]> {
+    const response = await this.client.get<any[]>('/workspaces');
+    return response.data;
+  }
 }
 
 // Simplified JSONDatabase for direct access
@@ -110,6 +116,9 @@ interface DatabaseSchema {
   tests: Test[];
   project_ports: ProjectPort[];
   settings: Array<{ key: string; value: string; updated_at: number }>;
+  workspaces?: any[];
+  workspace_projects?: any[];
+  project_settings?: any[];
 }
 
 class JSONDatabase {
@@ -133,7 +142,7 @@ class JSONDatabase {
         this.write();
       }
     } else {
-      this.data = { projects: [], tests: [], project_ports: [], settings: [] };
+      this.data = { projects: [], tests: [], project_ports: [], settings: [], workspaces: [], workspace_projects: [], project_settings: [] };
       this.write();
     }
   }
@@ -154,6 +163,10 @@ class JSONDatabase {
           project.tags = [];
           needsWrite = true;
         }
+        if (project.git_branch === undefined) {
+          project.git_branch = null;
+          needsWrite = true;
+        }
       }
     }
     if (!this.data.tests) {
@@ -166,6 +179,18 @@ class JSONDatabase {
     }
     if (!this.data.settings) {
       this.data.settings = [];
+      needsWrite = true;
+    }
+    if (!this.data.workspaces) {
+      this.data.workspaces = [];
+      needsWrite = true;
+    }
+    if (!this.data.workspace_projects) {
+      this.data.workspace_projects = [];
+      needsWrite = true;
+    }
+    if (!this.data.project_settings) {
+      this.data.project_settings = [];
       needsWrite = true;
     }
     if (needsWrite) {
@@ -335,6 +360,10 @@ class DirectDataProvider implements ProjaxDataProvider {
       })
     );
     return results;
+  }
+
+  async getWorkspaces(): Promise<any[]> {
+    return this.db.data.workspaces || [];
   }
 }
 

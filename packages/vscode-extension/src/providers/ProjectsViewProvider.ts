@@ -78,6 +78,9 @@ export class ProjectsViewProvider implements vscode.WebviewViewProvider {
         case 'addProject':
           await this.handleAddProject();
           break;
+        case 'openWorkspace':
+          await this.openWorkspace(message.workspace);
+          break;
       }
     });
 
@@ -140,6 +143,47 @@ export class ProjectsViewProvider implements vscode.WebviewViewProvider {
       }
     } catch (error) {
       vscode.window.showErrorMessage(`Failed to open project: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  private async openWorkspace(workspace: any): Promise<void> {
+    const config = vscode.workspace.getConfiguration('projax');
+    const preferredMode = config.get<string>('preferredOpenMode', 'ask');
+
+    let action: string;
+    if (preferredMode === 'ask') {
+      const items = [
+        { label: '$(window) New Window', description: 'Open in a new window', action: 'newWindow' },
+        { label: '$(folder-opened) Current Window', description: 'Open in current window', action: 'currentWindow' },
+        { label: '$(add) Add to Workspace', description: 'Add to current workspace', action: 'addToWorkspace' },
+      ];
+      const selected = await vscode.window.showQuickPick(items, {
+        placeHolder: 'How would you like to open this workspace?',
+      });
+      if (!selected) return;
+      action = selected.action;
+    } else {
+      action = preferredMode;
+    }
+
+    const workspaceUri = vscode.Uri.file(workspace.workspace_file_path);
+    
+    if (!fs.existsSync(workspace.workspace_file_path)) {
+      vscode.window.showErrorMessage(`Workspace file not found: ${workspace.workspace_file_path}`);
+      return;
+    }
+
+    try {
+      if (action === 'newWindow') {
+        await vscode.commands.executeCommand('vscode.openFolder', workspaceUri, true);
+      } else if (action === 'addToWorkspace') {
+        await vscode.commands.executeCommand('vscode.openFolder', workspaceUri, false);
+      } else {
+        // currentWindow
+        await vscode.commands.executeCommand('vscode.openFolder', workspaceUri, false);
+      }
+    } catch (error) {
+      vscode.window.showErrorMessage(`Failed to open workspace: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

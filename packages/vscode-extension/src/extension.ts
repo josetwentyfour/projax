@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { getConnectionManager } from './services/ConnectionManager';
 import { getLogger } from './utils/logger';
 import { WorkspaceDetector } from './services/WorkspaceDetector';
@@ -364,6 +365,124 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       } catch (error) {
         vscode.window.showErrorMessage(`Failed to show processes: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    })
+  );
+
+  // Open workspace from PROJAX
+  context.subscriptions.push(
+    vscode.commands.registerCommand('projax.openWorkspace', async () => {
+      try {
+        const workspaces = await provider.getWorkspaces();
+        if (workspaces.length === 0) {
+          vscode.window.showInformationMessage('No workspaces found in PROJAX');
+          return;
+        }
+        const items = workspaces.map(w => ({
+          label: w.name,
+          description: w.workspace_file_path,
+          workspace: w,
+        }));
+        const selected = await vscode.window.showQuickPick(items, {
+          placeHolder: 'Select a workspace to open',
+        });
+        if (selected) {
+          const config = vscode.workspace.getConfiguration('projax');
+          const preferredMode = config.get<'newWindow' | 'currentWindow' | 'addToWorkspace' | 'ask'>('preferredOpenMode', 'ask');
+          
+          let openMode: boolean | undefined;
+          if (preferredMode === 'ask') {
+            const modeItems = [
+              { label: 'New Window', value: true },
+              { label: 'Current Window', value: false },
+            ];
+            const modeSelected = await vscode.window.showQuickPick(modeItems, {
+              placeHolder: 'How would you like to open this workspace?',
+            });
+            if (!modeSelected) return;
+            openMode = modeSelected.value;
+          } else {
+            openMode = preferredMode === 'newWindow';
+          }
+          
+          const workspaceUri = vscode.Uri.file(selected.workspace.workspace_file_path);
+          await vscode.commands.executeCommand('vscode.openFolder', workspaceUri, openMode);
+          vscode.window.showInformationMessage(`Opened workspace: ${selected.workspace.name}`);
+        }
+      } catch (error) {
+        vscode.window.showErrorMessage(`Failed to open workspace: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    })
+  );
+
+  // Create backup
+  context.subscriptions.push(
+    vscode.commands.registerCommand('projax.createBackup', async () => {
+      try {
+        const saveUri = await vscode.window.showSaveDialog({
+          title: 'Save PROJAX Backup',
+          defaultUri: vscode.Uri.file(`projax-backup-${new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-')}.pbz`),
+          filters: { 'PROJAX Backup': ['pbz'] },
+        });
+        if (saveUri) {
+          // Get API base URL from connection manager
+          const apiBaseUrl = connectionManager.getMode() === 'api' 
+            ? (provider as any).baseUrl || 'http://localhost:3001/api'
+            : 'http://localhost:3001/api';
+          const response = await fetch(`${apiBaseUrl}/backup/create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ output_path: path.dirname(saveUri.fsPath) }),
+          });
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to create backup');
+          }
+          const result = await response.json();
+          vscode.window.showInformationMessage(`Backup created: ${result.backup_path}`);
+        }
+      } catch (error) {
+        vscode.window.showErrorMessage(`Failed to create backup: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    })
+  );
+
+  // Restore backup
+  context.subscriptions.push(
+    vscode.commands.registerCommand('projax.restoreBackup', async () => {
+      try {
+        const confirm = await vscode.window.showWarningMessage(
+          'This will overwrite your current PROJAX data. Continue?',
+          { modal: true },
+          'Continue'
+        );
+        if (confirm !== 'Continue') return;
+        
+        const openUri = await vscode.window.showOpenDialog({
+          title: 'Select Backup File',
+          filters: { 'PROJAX Backup': ['pbz'] },
+          canSelectMany: false,
+        });
+        if (openUri && openUri.length > 0) {
+          // Get API base URL from connection manager
+          const apiBaseUrl = connectionManager.getMode() === 'api' 
+            ? (provider as any).baseUrl || 'http://localhost:3001/api'
+            : 'http://localhost:3001/api';
+          const response = await fetch(`${apiBaseUrl}/backup/restore`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ backup_path: openUri[0].fsPath }),
+          });
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to restore backup');
+          }
+          vscode.window.showInformationMessage('Backup restored successfully! Please refresh the PROJAX views.');
+          if (projectsProvider) projectsProvider.refresh();
+          if (detailsProvider) detailsProvider.refresh();
+        }
+      } catch (error) {
+        vscode.window.showErrorMessage(`Failed to restore backup: ${error instanceof Error ? error.message : String(error)}`);
       }
     })
   );

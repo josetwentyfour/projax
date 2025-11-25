@@ -81,6 +81,15 @@ export interface ElectronAPI {
   removeProcessExitListener: (callback: (event: any, data: { pid: number; code: number }) => void) => void;
   getAppVersion: () => Promise<string>;
   getLatestTestResult: (projectId: number) => Promise<any | null>;
+  getWorkspaces: () => Promise<any[]>;
+  addWorkspace: (workspace: any) => Promise<any>;
+  removeWorkspace: (workspaceId: number) => Promise<void>;
+  createBackup: (outputPath: string) => Promise<{ success: boolean; backup_path: string }>;
+  restoreBackup: (backupPath: string) => Promise<{ success: boolean }>;
+  showSaveDialog: (options: any) => Promise<any>;
+  showOpenDialog: (options: any) => Promise<any>;
+  selectFile: (options: any) => Promise<string | null>;
+  openWorkspace: (workspaceId: number) => Promise<void>;
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -118,5 +127,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeProcessExitListener: (callback: any) => ipcRenderer.removeListener('process-exit', callback),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getLatestTestResult: (projectId: number) => ipcRenderer.invoke('get-latest-test-result', projectId),
+  getWorkspaces: () => ipcRenderer.invoke('get-workspaces'),
+  addWorkspace: (workspace: any) => ipcRenderer.invoke('add-workspace', workspace),
+  removeWorkspace: (workspaceId: number) => ipcRenderer.invoke('remove-workspace', workspaceId),
+  createBackup: (outputPath: string) => ipcRenderer.invoke('create-backup', outputPath),
+  restoreBackup: (backupPath: string) => ipcRenderer.invoke('restore-backup', backupPath),
+  showSaveDialog: (options: any) => ipcRenderer.invoke('show-save-dialog', options),
+  showOpenDialog: (options: any) => ipcRenderer.invoke('show-open-dialog', options),
+    selectFile: (options: any) => ipcRenderer.invoke('select-file', options),
+    openWorkspace: (workspaceId: number) => ipcRenderer.invoke('open-workspace', workspaceId),
 } as ElectronAPI);
 

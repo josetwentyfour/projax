@@ -20,6 +20,16 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// 404 handler for API routes - return JSON, not HTML
+app.use('/api/*', (req, res) => {
+  res.status(404).json({ error: 'API endpoint not found', path: req.path });
+});
+
+// 404 handler for all other routes
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found', path: req.path });
+});
+
 // Function to check if port is available
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {

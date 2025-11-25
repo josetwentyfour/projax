@@ -30,6 +30,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose }) => {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
 
   // ESC key to close
   useEffect(() => {
@@ -103,16 +105,15 @@ const Settings: React.FC<SettingsProps> = ({ onClose }) => {
   }
 
   return (
-    <div className="settings-overlay" onClick={onClose}>
-      <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="settings-header">
-          <h2>Settings</h2>
-          <button onClick={onClose} className="settings-close-btn" title="Close">
-            ×
-          </button>
-        </div>
+    <div className="settings-container">
+      <div className="settings-header">
+        <h2>Settings</h2>
+        <button type="button" onClick={onClose} className="btn btn-secondary">
+          Close
+        </button>
+      </div>
 
-        <div className="settings-content">
+      <div className="settings-content">
           <div className="settings-section">
             <h3>Editor</h3>
             <div className="settings-field">
@@ -182,16 +183,70 @@ const Settings: React.FC<SettingsProps> = ({ onClose }) => {
               </div>
             )}
           </div>
+
+          <div className="settings-section">
+            <h3>Backup & Restore</h3>
+            <div className="settings-field">
+              <label>Create Backup</label>
+              <p className="settings-description">Create a backup of all PROJAX data</p>
+              <button
+                onClick={async () => {
+                  try {
+                    setBackupLoading(true);
+                    const result = await window.electronAPI.selectDirectory();
+                    if (result) {
+                      const backupResult = await window.electronAPI.createBackup(result);
+                      alert(`Backup created successfully!\n${backupResult.backup_path}`);
+                    }
+                  } catch (error) {
+                    alert(`Failed to create backup: ${error instanceof Error ? error.message : String(error)}`);
+                  } finally {
+                    setBackupLoading(false);
+                  }
+                }}
+                disabled={backupLoading}
+                className="btn btn-secondary"
+              >
+                {backupLoading ? 'Creating...' : 'Create Backup'}
+              </button>
+            </div>
+            <div className="settings-field">
+              <label>Restore from Backup</label>
+              <p className="settings-description">Restore PROJAX data from a backup file</p>
+              <button
+                onClick={async () => {
+                  if (!confirm('This will overwrite your current PROJAX data. Continue?')) {
+                    return;
+                  }
+                  try {
+                    setRestoreLoading(true);
+                    const filePath = await window.electronAPI.selectFile({
+                      filters: [{ name: 'PROJAX Backup', extensions: ['pbz'] }],
+                    });
+                    if (filePath) {
+                      await window.electronAPI.restoreBackup(filePath);
+                      alert('Backup restored successfully! The app will refresh.');
+                      window.location.reload();
+                    }
+                  } catch (error) {
+                    alert(`Failed to restore backup: ${error instanceof Error ? error.message : String(error)}`);
+                  } finally {
+                    setRestoreLoading(false);
+                  }
+                }}
+                disabled={restoreLoading}
+                className="btn btn-danger"
+              >
+                {restoreLoading ? 'Restoring...' : 'Restore from Backup'}
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="settings-footer">
-          <button onClick={onClose} className="btn btn-secondary">
-            Cancel
-          </button>
-          <button onClick={handleSave} disabled={saving} className="btn btn-primary">
-            {saving ? 'Saving...' : 'Save'}
-          </button>
-        </div>
+      <div className="settings-footer">
+        <button type="button" onClick={handleSave} disabled={saving} className="btn btn-primary">
+          {saving ? 'Saving...' : 'Save Settings'}
+        </button>
       </div>
     </div>
   );
