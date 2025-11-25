@@ -79,6 +79,11 @@ export interface ProjectSettings {
   id: number;
   project_id: number;
   script_sort_order: 'default' | 'alphabetical' | 'last-used';
+  scripts_path: string | null; // Relative path from project root for scripts (e.g., "frontend", "packages/app")
+  editor: {
+    type: string | null; // 'vscode', 'cursor', 'windsurf', 'zed', 'custom', or null to use global
+    customPath: string | null; // Custom editor path if type is 'custom'
+  } | null;
   updated_at: number;
 }
 

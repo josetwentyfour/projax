@@ -43,7 +43,7 @@ export interface ElectronAPI {
   closeWindow: () => Promise<void>;
   renameProject: (projectId: number, newName: string) => Promise<Project>;
   updateProject: (projectId: number, updates: { description?: string | null }) => Promise<Project>;
-  getProjectScripts: (projectPath: string) => Promise<ProjectScripts>;
+  getProjectScripts: (projectPath: string, projectId?: number) => Promise<ProjectScripts>;
   runScript: (projectPath: string, scriptName: string, args?: string[], background?: boolean) => Promise<{ success: boolean; background: boolean }>;
   scanProjectPorts: (projectId: number) => Promise<ProjectPort[]>;
   scanAllPorts: () => Promise<Record<number, ProjectPort[]>>;
@@ -62,15 +62,24 @@ export interface ElectronAPI {
   stopScript: (pid: number) => Promise<boolean>;
   stopProject: (projectPath: string) => Promise<number>;
   openUrl: (url: string) => Promise<void>;
-  openInEditor: (projectPath: string) => Promise<void>;
+  openInEditor: (projectPath: string, projectId?: number) => Promise<void>;
   openInFiles: (projectPath: string) => Promise<void>;
+  openFilePath: (filePath: string) => Promise<void>;
   getSettings: () => Promise<{
     editor: { type: string; customPath?: string };
     browser: { type: string; customPath?: string };
+    display?: any;
+    appearance?: any;
+    behavior?: any;
+    advanced?: any;
   }>;
   saveSettings: (settings: {
     editor: { type: string; customPath?: string };
     browser: { type: string; customPath?: string };
+    display?: any;
+    appearance?: any;
+    behavior?: any;
+    advanced?: any;
   }) => Promise<void>;
   openExternal: (url: string) => void;
   watchProcessOutput: (pid: number) => Promise<{ success: boolean }>;
@@ -90,6 +99,8 @@ export interface ElectronAPI {
   showOpenDialog: (options: any) => Promise<any>;
   selectFile: (options: any) => Promise<string | null>;
   openWorkspace: (workspaceId: number) => Promise<void>;
+  onMenuAction: (callback: (event: any, action: string, ...args: any[]) => void) => void;
+  removeMenuActionListener: (callback: (event: any, action: string, ...args: any[]) => void) => void;
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -105,7 +116,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   closeWindow: () => ipcRenderer.invoke('close-window'),
   renameProject: (projectId: number, newName: string) => ipcRenderer.invoke('rename-project', projectId, newName),
   updateProject: (projectId: number, updates: any) => ipcRenderer.invoke('update-project', projectId, updates),
-  getProjectScripts: (projectPath: string) => ipcRenderer.invoke('get-project-scripts', projectPath),
+  getProjectScripts: (projectPath: string, projectId?: number) => ipcRenderer.invoke('get-project-scripts', projectPath, projectId),
   runScript: (projectPath: string, scriptName: string, args?: string[], background?: boolean) => ipcRenderer.invoke('run-script', projectPath, scriptName, args, background),
   scanProjectPorts: (projectId: number) => ipcRenderer.invoke('scan-project-ports', projectId),
   scanAllPorts: () => ipcRenderer.invoke('scan-all-ports'),
@@ -114,8 +125,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopScript: (pid: number) => ipcRenderer.invoke('stop-script', pid),
   stopProject: (projectPath: string) => ipcRenderer.invoke('stop-project', projectPath),
   openUrl: (url: string) => ipcRenderer.invoke('open-url', url),
-  openInEditor: (projectPath: string) => ipcRenderer.invoke('open-in-editor', projectPath),
+  openInEditor: (projectPath: string, projectId?: number) => ipcRenderer.invoke('open-in-editor', projectPath, projectId),
   openInFiles: (projectPath: string) => ipcRenderer.invoke('open-in-files', projectPath),
+  openFilePath: (filePath: string) => ipcRenderer.invoke('open-file-path', filePath),
   openExternal: (url: string) => ipcRenderer.send('open-external-url', url),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
@@ -136,5 +148,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showOpenDialog: (options: any) => ipcRenderer.invoke('show-open-dialog', options),
     selectFile: (options: any) => ipcRenderer.invoke('select-file', options),
     openWorkspace: (workspaceId: number) => ipcRenderer.invoke('open-workspace', workspaceId),
+    onMenuAction: (callback: any) => {
+      ipcRenderer.on('menu-action', callback);
+    },
+    removeMenuActionListener: (callback: any) => {
+      ipcRenderer.removeListener('menu-action', callback);
+    },
 } as ElectronAPI);
 

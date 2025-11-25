@@ -6,9 +6,10 @@ interface TerminalProps {
   scriptName: string;
   projectName: string;
   onClose: () => void;
+  onProjectClick?: () => void;
 }
 
-const Terminal: React.FC<TerminalProps> = ({ pid, scriptName, projectName, onClose }) => {
+const Terminal: React.FC<TerminalProps> = ({ pid, scriptName, projectName, onClose, onProjectClick }) => {
   const [output, setOutput] = useState<string[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -103,7 +104,18 @@ const Terminal: React.FC<TerminalProps> = ({ pid, scriptName, projectName, onClo
             </span>
             <div className="terminal-info">
               <span className="terminal-script">{scriptName}</span>
-              <span className="terminal-project">{projectName}</span>
+              {onProjectClick ? (
+                <button
+                  type="button"
+                  className="terminal-project terminal-project-link"
+                  onClick={onProjectClick}
+                  title="Click to view project"
+                >
+                  {projectName}
+                </button>
+              ) : (
+                <span className="terminal-project">{projectName}</span>
+              )}
             </div>
           </div>
           <div className="terminal-meta">

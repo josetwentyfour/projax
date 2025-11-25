@@ -1,17 +1,24 @@
 .app-header {
   -webkit-app-region: drag;
-  -webkit-user-select: none;
-  user-select: none;
+}
+
+.header-left {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 1.5rem;
+}
+
+.header-tabs {
+  -webkit-app-region: no-drag;
 }
 
 /* Make buttons and interactive elements clickable */
 .app-header button,
 .app-header .btn,
 .app-header .btn-link,
-.app-header .header-actions {
+.app-header .header-actions,
+.app-header .header-tabs,
+.app-header .header-left {
   -webkit-app-region: no-drag;
 }
 

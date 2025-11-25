@@ -84,8 +84,11 @@ const StatusBar: React.FC<StatusBarProps> = ({ apiPort }) => {
   return (
     <div className="status-bar">
       <div className="status-bar-content">
-        <div className="status-version">
-          v{version}
+        <div className="status-left">
+          <div className="status-logo">PROJAX</div>
+          <div className="status-version">
+            v{version}
+          </div>
         </div>
         <div className="status-right">
           <div className="status-indicator">

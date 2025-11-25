@@ -12,6 +12,7 @@ interface ProjectDetailsProps {
   onRemoveProject?: (projectId: number) => void;
   onOpenTerminal?: (pid: number, scriptName: string, projectName: string) => void;
   onNavigateBack?: () => void;
+  onSelectWorkspace?: (workspace: any) => void;
 }
 
 const ProjectDetails: React.FC<ProjectDetailsProps> = ({
@@ -21,6 +22,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   onRemoveProject,
   onOpenTerminal,
   onNavigateBack,
+  onSelectWorkspace,
 }) => {
   const [editingName, setEditingName] = useState(false);
   const [projectName, setProjectName] = useState(project.name);
@@ -42,6 +44,26 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   const [loadingTestResult, setLoadingTestResult] = useState(false);
   const [scriptSortOrder, setScriptSortOrder] = useState<'default' | 'alphabetical' | 'last-used'>('default');
   const [scriptLastUsed, setScriptLastUsed] = useState<Map<string, number>>(new Map());
+  const [projectSettings, setProjectSettings] = useState<{
+    scripts_path: string | null;
+    editor: { type: string | null; customPath: string | null } | null;
+  }>({
+    scripts_path: null,
+    editor: null,
+  });
+  const [editingScriptsPath, setEditingScriptsPath] = useState(false);
+  const [scriptsPathInput, setScriptsPathInput] = useState('');
+  const [editingProjectEditor, setEditingProjectEditor] = useState(false);
+  const [displaySettings, setDisplaySettings] = useState({
+    showStats: true,
+    showTestResults: true,
+    showTags: true,
+    showUrls: true,
+    showScripts: true,
+    showJenkins: false,
+  });
+  const [projectWorkspaces, setProjectWorkspaces] = useState<any[]>([]);
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
 
   useEffect(() => {
     setProjectName(project.name);
@@ -54,6 +76,9 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     loadEditorSettings();
     loadLatestTestResult();
     loadProjectSettings();
+    loadDisplaySettings();
+    loadProjectWorkspaces();
+    loadProjectSettingsFull();
     
     // Refresh running processes and test results every 5 seconds
     const interval = setInterval(() => {
@@ -64,24 +89,234 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     return () => clearInterval(interval);
   }, [project]);
 
+  const loadDisplaySettings = async () => {
+    try {
+      const settings = await window.electronAPI.getSettings();
+      if (settings.display?.projectDetails) {
+        setDisplaySettings(settings.display.projectDetails);
+      }
+    } catch (error) {
+      console.error('Error loading display settings:', error);
+    }
+  };
+
+  const loadProjectWorkspaces = async () => {
+    try {
+      console.log('[ProjectDetails] loadProjectWorkspaces called for project:', project.name);
+      setLoadingWorkspaces(true);
+      const apiBaseUrl = await getApiBaseUrl();
+      if (!apiBaseUrl) {
+        console.warn('[ProjectDetails] No API base URL found, cannot sync workspaces');
+        setProjectWorkspaces([]);
+        return;
+      }
+      
+      console.log('[ProjectDetails] Starting automatic workspace sync...');
+      
+      // First, sync all workspaces from their files to ensure database is up to date
+      // This ensures the database matches the workspace files before we check for matches
+      try {
+        const workspacesResponse = await fetch(`${apiBaseUrl}/workspaces`);
+        if (!workspacesResponse.ok) {
+          console.warn(`[ProjectDetails] Failed to fetch workspaces for sync: ${workspacesResponse.status}`);
+          throw new Error(`Failed to fetch workspaces: ${workspacesResponse.status}`);
+        }
+        
+        const allWorkspaces = await workspacesResponse.json();
+        console.log(`[ProjectDetails] Syncing ${allWorkspaces.length} workspace(s) from files...`);
+        
+        // Sync each workspace from its file sequentially to avoid race conditions
+        // We do this sequentially instead of in parallel to ensure database writes complete
+        let syncedCount = 0;
+        let errorCount = 0;
+        for (const ws of allWorkspaces) {
+          try {
+            console.log(`[ProjectDetails] Syncing workspace "${ws.name}" (ID: ${ws.id})...`);
+            const syncResponse = await fetch(`${apiBaseUrl}/workspaces/${ws.id}/sync-from-file`, {
+              method: 'POST',
+            });
+            if (syncResponse.ok) {
+              const syncResult = await syncResponse.json();
+              console.log(`[ProjectDetails] ✓ Synced workspace "${ws.name}": added ${syncResult.added}, removed ${syncResult.removed}`);
+              syncedCount++;
+            } else {
+              const errorText = await syncResponse.text();
+              console.warn(`[ProjectDetails] ✗ Failed to sync workspace "${ws.name}" (ID: ${ws.id}): ${syncResponse.status} - ${errorText}`);
+              errorCount++;
+            }
+            // Small delay between syncs to ensure database writes complete
+            await new Promise(resolve => setTimeout(resolve, 100));
+          } catch (error) {
+            errorCount++;
+            console.error(`[ProjectDetails] ✗ Error syncing workspace "${ws.name}" (ID: ${ws.id}):`, error);
+          }
+        }
+        console.log(`[ProjectDetails] Completed syncing: ${syncedCount} succeeded, ${errorCount} failed out of ${allWorkspaces.length} workspace(s)`);
+        
+        // Additional delay to ensure all database writes are fully flushed to disk
+        // Increased delay to ensure API server has processed all syncs
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } catch (error) {
+        // If sync fails, log it but continue anyway - we'll just use what's in the database
+        console.error('[ProjectDetails] Error during workspace sync:', error);
+      }
+      
+      // Get all workspaces (after sync completes and database is updated)
+      // Add a delay to ensure the API server has the latest data after all syncs
+      await new Promise(resolve => setTimeout(resolve, 200));
+      const workspacesResponse = await fetch(`${apiBaseUrl}/workspaces`);
+      if (!workspacesResponse.ok) {
+        console.warn(`[ProjectDetails] Failed to fetch workspaces: ${workspacesResponse.status}`);
+        setProjectWorkspaces([]);
+        return;
+      }
+      const allWorkspaces = await workspacesResponse.json();
+      console.log(`[ProjectDetails] Loaded ${allWorkspaces.length} workspace(s) after sync`);
+      console.log('[ProjectDetails] Workspace data:', allWorkspaces.map((ws: any) => ({ id: ws.id, name: ws.name, path: ws.workspace_file_path })));
+      
+      // Helper function to normalize paths for comparison (matches database normalization)
+      // Database uses: path.normalize(path.resolve(p)).replace(/[/\\]+$/, '')
+      // This means paths are absolute, normalized, and have no trailing slashes
+      const normalizePath = (p: string): string => {
+        if (!p) return '';
+        // Normalize separators (convert backslashes to forward slashes)
+        let normalized = p.replace(/\\/g, '/');
+        // Collapse multiple slashes (except at start for absolute paths on Windows)
+        if (normalized.length > 1 && normalized[1] === ':') {
+          // Windows absolute path (C:/...)
+          normalized = normalized[0] + ':' + normalized.substring(2).replace(/\/+/g, '/');
+        } else {
+          normalized = normalized.replace(/\/+/g, '/');
+        }
+        // Remove trailing slashes
+        normalized = normalized.replace(/\/+$/, '');
+        return normalized;
+      };
+      
+      // Get absolute path for project (should already be absolute from database)
+      const projectPath = project.path || '';
+      const normalizedProjectPath = normalizePath(projectPath);
+      
+      console.log('Checking project workspaces:', {
+        projectName: project.name,
+        projectPath: projectPath,
+        normalizedProjectPath: normalizedProjectPath,
+      });
+      
+      // For each workspace, check if it contains this project
+      const matchingWorkspaces = [];
+      for (const ws of allWorkspaces) {
+        try {
+          const projectsResponse = await fetch(`${apiBaseUrl}/workspaces/${ws.id}/projects`, {
+            signal: AbortSignal.timeout(2000),
+          });
+          if (projectsResponse.ok) {
+            const workspaceProjects = await projectsResponse.json();
+            console.log(`Workspace "${ws.name}" (${ws.id}) has ${workspaceProjects.length} projects`);
+            
+            const hasProject = workspaceProjects.some((wp: any) => {
+              if (!wp.project_path) return false;
+              const normalizedWorkspacePath = normalizePath(wp.project_path);
+              const matches = normalizedWorkspacePath === normalizedProjectPath;
+              
+              if (!matches) {
+                // Log mismatches for debugging
+                console.debug(`Path mismatch in workspace "${ws.name}":`, {
+                  workspacePath: wp.project_path,
+                  normalizedWorkspace: normalizedWorkspacePath,
+                  projectPath: projectPath,
+                  normalizedProject: normalizedProjectPath,
+                  lengths: {
+                    workspace: normalizedWorkspacePath.length,
+                    project: normalizedProjectPath.length,
+                  },
+                });
+              } else {
+                console.log(`✓ Found match in workspace "${ws.name}":`, {
+                  workspacePath: wp.project_path,
+                  normalized: normalizedWorkspacePath,
+                });
+              }
+              
+              return matches;
+            });
+            
+            if (hasProject) {
+              matchingWorkspaces.push(ws);
+            }
+          }
+        } catch (error) {
+          // Skip this workspace if we can't load its projects
+          console.debug(`Error loading projects for workspace ${ws.id}:`, error);
+          continue;
+        }
+      }
+      
+      console.log(`Found ${matchingWorkspaces.length} workspace(s) for project "${project.name}"`);
+      console.log('[ProjectDetails] Matching workspaces:', matchingWorkspaces.map((ws: any) => ({ 
+        id: ws.id, 
+        name: ws.name, 
+        path: ws.workspace_file_path,
+        description: ws.description 
+      })));
+      
+      setProjectWorkspaces(matchingWorkspaces);
+    } catch (error) {
+      console.error('Error loading project workspaces:', error);
+      setProjectWorkspaces([]);
+    } finally {
+      setLoadingWorkspaces(false);
+    }
+  };
+
   const loadProjectSettings = async () => {
     try {
       const apiBaseUrl = await getApiBaseUrl();
-      if (!apiBaseUrl) return;
+      if (!apiBaseUrl) {
+        // API not available, use defaults silently
+        return;
+      }
       const response = await fetch(`${apiBaseUrl}/projects/${project.id}/settings`);
       if (response.ok) {
         const settings = await response.json();
         setScriptSortOrder(settings.script_sort_order || 'default');
       }
     } catch (error) {
-      console.error('Error loading project settings:', error);
+      // Silently fail - API might not be available
+      console.debug('Could not load project settings:', error);
+    }
+  };
+
+  const loadProjectSettingsFull = async () => {
+    try {
+      const apiBaseUrl = await getApiBaseUrl();
+      if (!apiBaseUrl) {
+        // API not available, use defaults silently
+        return;
+      }
+      const response = await fetch(`${apiBaseUrl}/projects/${project.id}/settings`);
+      if (response.ok) {
+        const settings = await response.json();
+        setProjectSettings({
+          scripts_path: settings.scripts_path || null,
+          editor: settings.editor || null,
+        });
+        setScriptsPathInput(settings.scripts_path || '');
+      }
+    } catch (error) {
+      // Silently fail - API might not be available
+      console.debug('Could not load project settings:', error);
     }
   };
 
   const saveProjectSettings = async (sortOrder: 'default' | 'alphabetical' | 'last-used') => {
     try {
       const apiBaseUrl = await getApiBaseUrl();
-      if (!apiBaseUrl) return;
+      if (!apiBaseUrl) {
+        // API not available, can't save
+        console.warn('API server not available, cannot save project settings');
+        return;
+      }
       const response = await fetch(`${apiBaseUrl}/projects/${project.id}/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -89,9 +324,64 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
       });
       if (response.ok) {
         setScriptSortOrder(sortOrder);
+      } else {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.warn('Failed to save project settings:', error.error);
+      }
+    } catch (error) {
+      console.warn('Error saving project settings:', error);
+    }
+  };
+
+  const saveProjectSettingsFull = async (updates: {
+    scripts_path?: string | null;
+    editor?: { type: string | null; customPath: string | null } | null;
+  }) => {
+    try {
+      // Validate scripts_path exists if provided
+      if (updates.scripts_path !== undefined && updates.scripts_path) {
+        const fullPath = updates.scripts_path.startsWith('/') 
+          ? updates.scripts_path 
+          : `${project.path}/${updates.scripts_path}`.replace(/\/+/g, '/');
+        // Note: We can't check if path exists from renderer, so we'll let the API handle validation
+        // The API will validate that it's a relative path
+      }
+      
+      const apiBaseUrl = await getApiBaseUrl();
+      if (!apiBaseUrl) {
+        alert('API server not available. Please ensure the PROJAX API server is running.');
+        return;
+      }
+      const response = await fetch(`${apiBaseUrl}/projects/${project.id}/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (response.ok) {
+        await loadProjectSettingsFull();
+        // Reload scripts if scripts_path changed
+        if (updates.scripts_path !== undefined) {
+          // Wait for the database file to be written and flushed to disk
+          // The API writes synchronously, but we need to ensure the main process reads the updated file
+          await new Promise(resolve => setTimeout(resolve, 300));
+          // Force reload scripts with the new path
+          setLoadingScripts(true);
+          try {
+            await loadScripts();
+          } catch (error) {
+            console.error('Error reloading scripts after path change:', error);
+            // Retry once after a longer delay
+            await new Promise(resolve => setTimeout(resolve, 500));
+          await loadScripts();
+          }
+        }
+      } else {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        alert(error.error || 'Failed to save project settings');
       }
     } catch (error) {
       console.error('Error saving project settings:', error);
+      alert(`Failed to save project settings: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -144,7 +434,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
 const loadScripts = async () => {
     try {
       setLoadingScripts(true);
-      const projectScripts = await window.electronAPI.getProjectScripts(project.path);
+      const projectScripts = await window.electronAPI.getProjectScripts(project.path, project.id);
       setScripts(projectScripts);
     } catch (error) {
       console.error('Error loading scripts:', error);
@@ -290,9 +580,27 @@ const loadScripts = async () => {
       setScriptLastUsed(prev => new Map(prev).set(scriptName, Date.now()));
       await window.electronAPI.runScript(project.path, scriptName, [], background);
       if (background) {
-        // Refresh processes after a short delay
-        setTimeout(() => {
-          loadRunningProcesses();
+        // Refresh processes after a short delay to get the PID
+        setTimeout(async () => {
+          await loadRunningProcesses();
+          // Automatically open terminal sidebar when running script from project details
+          if (onOpenTerminal) {
+            try {
+              // Find the process that was just started
+              const processes = await window.electronAPI.getRunningProcesses();
+              const newProcess = processes.find((p: any) => 
+                p.projectPath === project.path && 
+                p.scriptName === scriptName &&
+                // Find the most recently started process for this script
+                Date.now() - p.startedAt < 2000 // Started within last 2 seconds
+              );
+              if (newProcess) {
+                onOpenTerminal(newProcess.pid, scriptName, project.name);
+              }
+            } catch (error) {
+              console.debug('Error opening terminal after script run:', error);
+            }
+          }
         }, 1000);
       }
     } catch (error) {
@@ -405,6 +713,7 @@ const loadScripts = async () => {
                 type="text"
                 value={projectName}
                 onChange={(e) => setProjectName(e.target.value)}
+                aria-label="Project name"
                 onBlur={handleRename}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -459,7 +768,7 @@ const loadScripts = async () => {
           <button
             onClick={async () => {
               try {
-                await window.electronAPI.openInEditor(project.path);
+                await window.electronAPI.openInEditor(project.path, project.id);
               } catch (error) {
                 console.error('Error opening in editor:', error);
                 alert(`Failed to open in editor: ${error instanceof Error ? error.message : String(error)}`);
@@ -487,6 +796,7 @@ const loadScripts = async () => {
         </div>
       </div>
 
+      {displaySettings.showStats && (
       <div className="project-stats">
         <div className="stat-card">
           <div className="stat-value">{ports.length}</div>
@@ -497,9 +807,10 @@ const loadScripts = async () => {
           <div className="stat-label">Scripts</div>
         </div>
       </div>
+      )}
 
       {/* Test Results Section */}
-      {latestTestResult && (
+      {displaySettings.showTestResults && latestTestResult && (
         <div className="test-results-section">
           <div className="section-header">
             <h3>Latest Test Results</h3>
@@ -557,6 +868,7 @@ const loadScripts = async () => {
       )}
 
       {/* Tags Section */}
+      {displaySettings.showTags && (
       <div className="tags-section">
         <div className="section-header">
           <h3>Tags</h3>
@@ -581,6 +893,8 @@ const loadScripts = async () => {
                   type="text"
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
+                  aria-label="Add tag"
+                  placeholder="Add tag"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       handleAddTag();
@@ -594,7 +908,6 @@ const loadScripts = async () => {
                     setEditingTags(false);
                   }}
                   className="tag-input"
-                  placeholder="Add tag..."
                   autoFocus
                 />
                 {suggestedTags.length > 0 && tagInput && (
@@ -626,14 +939,15 @@ const loadScripts = async () => {
           </div>
         </div>
       </div>
+      )}
 
-      {allUrls.length > 0 && (
+      {displaySettings.showUrls && allUrls.length > 0 && (
         <ProjectUrls urls={allUrls} onOpenUrl={handleOpenUrl} />
       )}
 
       
 
-      {scripts && (
+      {displaySettings.showScripts && scripts && (
         <div className="scripts-section">
           <div className="section-header">
             <h3>Available Scripts ({scripts.scripts.length})</h3>
@@ -643,6 +957,7 @@ const loadScripts = async () => {
                 value={scriptSortOrder}
                 onChange={(e) => saveProjectSettings(e.target.value as 'default' | 'alphabetical' | 'last-used')}
                 className="script-sort-select"
+                aria-label="Script sort order"
               >
                 <option value="default">Default</option>
                 <option value="alphabetical">Alphabetically</option>
@@ -739,12 +1054,189 @@ const loadScripts = async () => {
         </div>
       )}
 
+      {displaySettings.showJenkins && (
       <div className="jenkins-placeholder">
         <h3>Jenkins Integration</h3>
         <p className="placeholder-text">
           Jenkins integration will be available in a future update. This section will display
           Jenkins job statuses and build information for your projects.
         </p>
+      </div>
+      )}
+
+      <div className="project-section">
+        <h3>Project Settings</h3>
+        <div className="project-settings-content">
+          <div className="setting-group">
+            <label htmlFor="scripts-path">Custom Script Scan Path</label>
+            <p className="setting-hint">Optional: Relative path from project root where scripts are located. Can be a directory (e.g., "frontend", "packages/app") or a specific file (e.g., "src/package.json"). Leave empty to use project root.</p>
+            {editingScriptsPath ? (
+              <div className="setting-input-group">
+                <input
+                  id="scripts-path"
+                  type="text"
+                  value={scriptsPathInput}
+                  onChange={(e) => setScriptsPathInput(e.target.value)}
+                  onBlur={async () => {
+                    await saveProjectSettingsFull({ scripts_path: scriptsPathInput.trim() || null });
+                    setEditingScriptsPath(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      saveProjectSettingsFull({ scripts_path: scriptsPathInput.trim() || null });
+                      setEditingScriptsPath(false);
+                    } else if (e.key === 'Escape') {
+                      setScriptsPathInput(projectSettings.scripts_path || '');
+                      setEditingScriptsPath(false);
+                    }
+                  }}
+                  placeholder="e.g., frontend, packages/app, src/package.json"
+                  className="setting-input"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await saveProjectSettingsFull({ scripts_path: scriptsPathInput.trim() || null });
+                    setEditingScriptsPath(false);
+                  }}
+                  className="btn btn-secondary btn-small"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScriptsPathInput(projectSettings.scripts_path || '');
+                    setEditingScriptsPath(false);
+                  }}
+                  className="btn btn-secondary btn-small"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="setting-display" onClick={() => setEditingScriptsPath(true)}>
+                <span className="setting-value">
+                  {projectSettings.scripts_path || '(project root)'}
+                </span>
+                <span className="setting-edit-hint">Click to edit</span>
+              </div>
+            )}
+          </div>
+
+          <div className="setting-group">
+            <label htmlFor="project-editor">Editor Override</label>
+            <p className="setting-hint">Override the global editor setting for this project only. Leave as "Use Global" to use your default editor.</p>
+            {editingProjectEditor ? (
+              <div className="setting-input-group">
+                <select
+                  id="project-editor-type"
+                  value={projectSettings.editor?.type || 'global'}
+                  onChange={(e) => {
+                    const newType = e.target.value === 'global' ? null : e.target.value;
+                    setProjectSettings({
+                      ...projectSettings,
+                      editor: newType ? { type: newType, customPath: newType === 'custom' ? projectSettings.editor?.customPath || '' : null } : null,
+                    });
+                  }}
+                  className="setting-select"
+                >
+                  <option value="global">Use Global</option>
+                  <option value="vscode">VS Code</option>
+                  <option value="cursor">Cursor</option>
+                  <option value="windsurf">Windsurf</option>
+                  <option value="zed">Zed</option>
+                  <option value="custom">Custom</option>
+                </select>
+                {projectSettings.editor?.type === 'custom' && (
+                  <input
+                    type="text"
+                    value={projectSettings.editor.customPath || ''}
+                    onChange={(e) => {
+                      setProjectSettings({
+                        ...projectSettings,
+                        editor: {
+                          type: 'custom',
+                          customPath: e.target.value,
+                        },
+                      });
+                    }}
+                    placeholder="Custom editor path"
+                    className="setting-input"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await saveProjectSettingsFull({ editor: projectSettings.editor });
+                    setEditingProjectEditor(false);
+                  }}
+                  className="btn btn-secondary btn-small"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await loadProjectSettingsFull();
+                    setEditingProjectEditor(false);
+                  }}
+                  className="btn btn-secondary btn-small"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="setting-display" onClick={() => setEditingProjectEditor(true)}>
+                <span className="setting-value">
+                  {projectSettings.editor?.type 
+                    ? (projectSettings.editor.type === 'custom' 
+                        ? `Custom: ${projectSettings.editor.customPath || '(not set)'}`
+                        : projectSettings.editor.type.charAt(0).toUpperCase() + projectSettings.editor.type.slice(1))
+                    : 'Use Global'}
+                </span>
+                <span className="setting-edit-hint">Click to edit</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="project-section">
+        <h3>Workspaces ({projectWorkspaces.length})</h3>
+        {loadingWorkspaces ? (
+          <div className="loading-spinner">
+            <div className="spinner"></div>
+            <p>Syncing workspaces and loading...</p>
+          </div>
+        ) : projectWorkspaces.length === 0 ? (
+          <div className="empty-state">
+            <p>This project is not referenced in any workspaces</p>
+          </div>
+        ) : (
+          <div className="workspaces-list">
+            {projectWorkspaces.map((ws) => (
+              <div
+                key={ws.id}
+                className="workspace-item"
+                onClick={() => {
+                  if (onSelectWorkspace) {
+                    onSelectWorkspace(ws);
+                  }
+                }}
+              >
+                <div className="workspace-item-header">
+                  <h4 className="workspace-item-name">{ws.name}</h4>
+                </div>
+                {ws.description && (
+                  <p className="workspace-item-description">{ws.description}</p>
+                )}
+                <p className="workspace-item-path">{ws.workspace_file_path}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {onRemoveProject && (

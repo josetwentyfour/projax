@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 // Note: Renderer runs in browser context, types only
 type Project = any;
+import { ElectronAPI } from '../../main/preload';
 import './ProjectList.css';
+
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI;
+  }
+}
 
 interface ProjectListProps {
   projects: Project[];
@@ -39,6 +46,32 @@ const ProjectList: React.FC<ProjectListProps> = ({
   onKeyboardFocusChange,
   gitBranches,
 }) => {
+  const [displaySettings, setDisplaySettings] = useState({
+    showName: true,
+    showDescription: true,
+    showTags: true,
+    showRunningIndicator: true,
+    showPorts: true,
+    showGitBranch: true,
+  });
+
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    loadDisplaySettings();
+  }, []);
+
+  const loadDisplaySettings = async () => {
+    try {
+      const settings = await window.electronAPI.getSettings();
+      if (settings.display?.projectTiles) {
+        setDisplaySettings(settings.display.projectTiles);
+      }
+    } catch (error) {
+      console.error('Error loading display settings:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="project-list-loading">
@@ -55,8 +88,6 @@ const ProjectList: React.FC<ProjectListProps> = ({
       </div>
     );
   }
-
-  const listRef = React.useRef<HTMLDivElement>(null);
 
   return (
     <div 
@@ -121,15 +152,17 @@ const ProjectList: React.FC<ProjectListProps> = ({
           >
             <div className="project-item-header">
               <h3 className="project-name">
-                {hasRunningScripts && <span className="running-indicator-dot">●</span>}
-                {project.name}
-                {gitBranches && gitBranches.has(project.id) && gitBranches.get(project.id) && (
+                {displaySettings.showRunningIndicator && hasRunningScripts && <span className="running-indicator-dot">●</span>}
+                {displaySettings.showName && project.name}
+                {displaySettings.showGitBranch && gitBranches && gitBranches.has(project.id) && gitBranches.get(project.id) && (
                   <span className="git-branch-badge">{gitBranches.get(project.id)}</span>
                 )}
               </h3>
             </div>
+            {displaySettings.showDescription && (
             <p className="project-path">{project.description || getDisplayPath(project.path)}</p>
-            {project.tags && project.tags.length > 0 && (
+            )}
+            {displaySettings.showTags && project.tags && project.tags.length > 0 && (
               <div className="project-tags">
                 {project.tags.map((tag: string) => (
                   <span key={tag} className="project-tag">{tag}</span>
@@ -139,7 +172,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
             {hasRunningScripts && (
             <div className="project-meta">
                 <span className="running-count">{projectRunning.length} running</span>
-                {runningPorts.length > 0 && (
+                {displaySettings.showPorts && runningPorts.length > 0 && (
                   <div className="running-ports">
                     {runningPorts.map((port: number) => (
                       <span key={port} className="port-badge">:{port}</span>

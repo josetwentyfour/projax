@@ -223,7 +223,7 @@ const AddWorkspaceModal: React.FC<AddWorkspaceModalProps> = ({ onAdd, onClose, e
               </div>
 
               <div className="form-group">
-                <p className="form-hint" style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                <p className="form-hint">
                   Workspace files are automatically stored in ~/.projax/workspaces/
                 </p>
               </div>

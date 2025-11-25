@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as http from 'http';
 import { spawn, ChildProcess } from 'child_process';
 import { Tail } from 'tail';
@@ -48,6 +49,7 @@ if (!gotTheLock) {
       height: 800,
       frame: false,
       titleBarStyle: 'hidden',
+      trafficLightPosition: { x: -100, y: -100 }, // Hide macOS traffic lights
       title: 'PROJAX UI',
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
@@ -244,7 +246,127 @@ if (!gotTheLock) {
     }
   }
 
+  function createMenu() {
+    const template: Electron.MenuItemConstructorOptions[] = [
+      {
+        label: 'PROJAX UI',
+        submenu: [
+          { role: 'about', label: 'About PROJAX UI' },
+          { type: 'separator' },
+          { role: 'services', label: 'Services' },
+          { type: 'separator' },
+          { role: 'hide', label: 'Hide PROJAX UI' },
+          { role: 'hideOthers', label: 'Hide Others' },
+          { role: 'unhide', label: 'Show All' },
+          { type: 'separator' },
+          { role: 'quit', label: 'Quit PROJAX UI' },
+        ],
+      },
+      {
+        label: 'File',
+        submenu: [
+          {
+            label: 'New Project',
+            accelerator: 'CmdOrCtrl+N',
+            click: () => {
+              if (mainWindow) {
+                mainWindow.webContents.send('menu-action', 'new-project');
+              }
+            },
+          },
+          {
+            label: 'New Workspace',
+            accelerator: 'CmdOrCtrl+Shift+N',
+            click: () => {
+              if (mainWindow) {
+                mainWindow.webContents.send('menu-action', 'new-workspace');
+              }
+            },
+          },
+          { type: 'separator' },
+          {
+            label: 'Open Workspace',
+            accelerator: 'CmdOrCtrl+O',
+            click: () => {
+              if (mainWindow) {
+                mainWindow.webContents.send('menu-action', 'open-workspace');
+              }
+            },
+          },
+          {
+            label: 'Open Directory as New Project',
+            accelerator: 'CmdOrCtrl+Shift+O',
+            click: async () => {
+              if (mainWindow) {
+                const result = await dialog.showOpenDialog(mainWindow, {
+                  properties: ['openDirectory'],
+                });
+                if (!result.canceled && result.filePaths.length > 0) {
+                  mainWindow.webContents.send('menu-action', 'open-directory-as-project', result.filePaths[0]);
+                }
+              }
+            },
+          },
+          { type: 'separator' },
+          { role: 'close', label: 'Close Window' },
+        ],
+      },
+      {
+        label: 'Edit',
+        submenu: [
+          { role: 'undo', label: 'Undo' },
+          { role: 'redo', label: 'Redo' },
+          { type: 'separator' },
+          { role: 'cut', label: 'Cut' },
+          { role: 'copy', label: 'Copy' },
+          { role: 'paste', label: 'Paste' },
+          { role: 'selectAll', label: 'Select All' },
+        ],
+      },
+      {
+        label: 'View',
+        submenu: [
+          { role: 'reload', label: 'Reload' },
+          { role: 'forceReload', label: 'Force Reload' },
+          { role: 'toggleDevTools', label: 'Toggle Developer Tools' },
+          { type: 'separator' },
+          { role: 'resetZoom', label: 'Actual Size' },
+          { role: 'zoomIn', label: 'Zoom In' },
+          { role: 'zoomOut', label: 'Zoom Out' },
+          { type: 'separator' },
+          { role: 'togglefullscreen', label: 'Toggle Full Screen' },
+        ],
+      },
+      {
+        label: 'Window',
+        submenu: [
+          { role: 'minimize', label: 'Minimize' },
+          { role: 'close', label: 'Close' },
+        ],
+      },
+    ];
+
+    // macOS specific menu adjustments
+    if (process.platform === 'darwin') {
+      template[0].label = 'PROJAX UI';
+    } else {
+      // Windows/Linux: Remove the app menu and move items to File menu
+      template.shift();
+      const fileMenu = template[0];
+      if (fileMenu.submenu && Array.isArray(fileMenu.submenu)) {
+        fileMenu.submenu.push(
+          { type: 'separator' },
+          { role: 'quit', label: 'Exit' }
+        );
+      }
+    }
+
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
+  }
+
   app.whenReady().then(() => {
+    createMenu();
     startAPIServer();
     createWindow();
 
@@ -290,9 +412,43 @@ ipcMain.handle('get-app-version', async (): Promise<string> => {
 ipcMain.handle('get-projects', async (): Promise<Project[]> => {
   try {
     console.log('Getting projects from database...');
-    const projects = getAllProjects();
+    // Wait a bit for API server to be ready if it just started
+    // Try to get projects, with a retry if it fails
+    let projects: Project[] = [];
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        projects = getAllProjects();
     console.log(`Found ${projects.length} project(s)`);
     return projects;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (attempt < 2) {
+          // Wait a bit before retrying (API server might be starting)
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+    }
+    
+    // If all retries failed, try reading directly from database file as fallback
+    try {
+      const dataDir = path.join(os.homedir(), '.projax');
+      const dbPath = path.join(dataDir, 'data.json');
+      if (fs.existsSync(dbPath)) {
+        const dbContent = fs.readFileSync(dbPath, 'utf-8');
+        const db = JSON.parse(dbContent);
+        if (db.projects && Array.isArray(db.projects)) {
+          console.log(`Fallback: Found ${db.projects.length} project(s) from database file`);
+          return db.projects;
+        }
+      }
+    } catch (fileError) {
+      console.warn('Could not read projects from database file:', fileError);
+    }
+    
+    // If we still don't have projects, throw the original error
+    throw lastError || new Error('Failed to get projects');
   } catch (error) {
     console.error('Error getting projects:', error);
     throw error;
@@ -401,7 +557,7 @@ ipcMain.handle('rename-project', async (_, projectId: number, newName: string): 
 });
 
 // Get project scripts
-ipcMain.handle('get-project-scripts', async (_, projectPath: string) => {
+ipcMain.handle('get-project-scripts', async (_, projectPath: string, projectId?: number) => {
   // Try bundled path first (when bundled in CLI: dist/electron/main.js -> dist/script-runner.js)
   // Then try local dev path (packages/desktop/dist/main.js -> packages/cli/dist/script-runner.js)
   const bundledScriptRunnerPath = path.join(__dirname, '..', 'script-runner.js');
@@ -415,7 +571,69 @@ ipcMain.handle('get-project-scripts', async (_, projectPath: string) => {
   }
   
   const { getProjectScripts } = await import(scriptRunnerPath);
-  const result = getProjectScripts(projectPath);
+  
+  // Get project settings if projectId is provided
+  // Read directly from database file instead of making HTTP requests
+  let scriptsPath: string | null = null;
+  if (projectId) {
+    try {
+      const dataDir = path.join(os.homedir(), '.projax');
+      const dbPath = path.join(dataDir, 'data.json');
+      
+      // Try reading the file with a small retry in case it's being written
+      let db: any = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          if (fs.existsSync(dbPath)) {
+            const dbContent = fs.readFileSync(dbPath, 'utf-8');
+            db = JSON.parse(dbContent);
+            break; // Successfully read, exit retry loop
+          }
+        } catch (readError) {
+          if (attempt < 2) {
+            // Wait a bit before retrying (only on first two attempts)
+            await new Promise(resolve => setTimeout(resolve, 100));
+          continue;
+        }
+          throw readError;
+        }
+      }
+      
+      if (db && db.project_settings && Array.isArray(db.project_settings)) {
+        const settings = db.project_settings.find((ps: any) => ps.project_id === projectId);
+        if (settings && settings.scripts_path) {
+          scriptsPath = settings.scripts_path;
+        }
+      }
+    } catch (error) {
+      // Silently fail - will use project root if settings can't be loaded
+      console.debug('Could not load project settings for scripts, using project root:', error);
+    }
+  }
+  
+  // Use custom scripts path if set, otherwise use project root
+  let actualScriptsPath = projectPath;
+  if (scriptsPath) {
+    const joinedPath = path.join(projectPath, scriptsPath);
+    // Validate that the path exists
+    if (fs.existsSync(joinedPath)) {
+      const stats = fs.statSync(joinedPath);
+      if (stats.isDirectory()) {
+        // If it's a directory, use it directly
+      actualScriptsPath = joinedPath;
+      } else if (stats.isFile()) {
+        // If it's a file, use the directory containing the file
+        actualScriptsPath = path.dirname(joinedPath);
+      } else {
+        console.warn(`Custom scripts path is not a directory or file: ${joinedPath}, using project root instead`);
+      }
+    } else {
+      console.warn(`Custom scripts path does not exist: ${joinedPath}, using project root instead`);
+      // Fall back to project root if custom path doesn't exist
+    }
+  }
+  
+  const result = getProjectScripts(actualScriptsPath);
   // Convert Map to array for IPC serialization
   const scriptsArray = Array.from(result.scripts.entries() as Iterable<[string, any]>).map(([name, script]) => ({
     name,
@@ -665,7 +883,7 @@ ipcMain.handle('open-url', async (_, url: string) => {
 });
 
 // Open project in editor
-ipcMain.handle('open-in-editor', async (_, projectPath: string) => {
+ipcMain.handle('open-in-editor', async (_, projectPath: string, projectId?: number) => {
   // Try bundled path first (when bundled in CLI: dist/electron/main.js -> dist/core/settings)
   // Then try local dev path (packages/desktop/dist/main.js -> packages/core/dist/settings)
   const bundledSettingsPath = path.join(__dirname, 'core', 'settings');
@@ -679,7 +897,42 @@ ipcMain.handle('open-in-editor', async (_, projectPath: string) => {
   }
   
   const { getEditorSettings } = require(settingsPath);
-  const editorSettings = getEditorSettings();
+  const globalEditorSettings = getEditorSettings();
+  
+  // Check for project-specific editor settings
+  let editorSettings = globalEditorSettings;
+  if (projectId) {
+    try {
+      const ports = [38124, 38125, 38126, 38127, 38128, 3001];
+      let apiBaseUrl = '';
+      for (const port of ports) {
+        try {
+          const response = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(500) });
+          if (response.ok) {
+            apiBaseUrl = `http://localhost:${port}/api`;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+      if (apiBaseUrl) {
+        const settingsResponse = await fetch(`${apiBaseUrl}/projects/${projectId}/settings`);
+        if (settingsResponse.ok) {
+          const projectSettings = await settingsResponse.json() as { 
+            editor?: { type: string; customPath?: string } | null 
+          };
+          if (projectSettings.editor && projectSettings.editor.type) {
+            // Use project-specific editor
+            editorSettings = projectSettings.editor;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading project editor settings:', error);
+      // Fall back to global settings
+    }
+  }
   
   let command: string;
   let args: string[] = [projectPath];
@@ -819,6 +1072,17 @@ ipcMain.handle('open-in-files', async (_, projectPath: string) => {
   }
 });
 
+// Open file path in file manager (reveals file in finder/explorer)
+ipcMain.handle('open-file-path', async (_, filePath: string) => {
+  try {
+    // Use shell.showItemInFolder to reveal the file in the file manager
+    shell.showItemInFolder(filePath);
+  } catch (error) {
+    console.error('Error opening file path:', error);
+    throw error;
+  }
+});
+
 
 // Get settings
 ipcMain.handle('get-settings', async () => {
@@ -846,6 +1110,10 @@ ipcMain.handle('get-settings', async () => {
 ipcMain.handle('save-settings', async (_, settings: {
   editor: { type: string; customPath?: string };
   browser: { type: string; customPath?: string };
+  display?: any;
+  appearance?: any;
+  behavior?: any;
+  advanced?: any;
 }) => {
   try {
     // Load settings module directly
@@ -969,18 +1237,90 @@ ipcMain.handle('unwatch-process-output', async (_, pid: number) => {
 // Workspace handlers
 ipcMain.handle('get-workspaces', async () => {
   try {
-    const response = await fetch('http://localhost:3001/api/workspaces');
-    if (!response.ok) throw new Error('Failed to fetch workspaces');
-    return await response.json();
+    // Try to find the correct API port
+    const ports = [38124, 38125, 38126, 38127, 38128, 3001];
+    let apiBaseUrl = '';
+    
+    for (const port of ports) {
+      try {
+        const response = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(500) });
+        if (response.ok) {
+          apiBaseUrl = `http://localhost:${port}/api`;
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+    
+    // Try fetching from API with retries
+    if (apiBaseUrl) {
+      for (let i = 0; i < 3; i++) {
+        try {
+          const response = await fetch(`${apiBaseUrl}/workspaces`);
+          if (response.ok) {
+            const workspaces = await response.json();
+            console.log(`[main] Fetched ${workspaces.length} workspace(s) from API.`);
+            return workspaces;
+          }
+        } catch (error) {
+          console.debug(`[main] API fetch attempt ${i + 1} failed:`, error);
+          if (i < 2) {
+            await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms before retry
+          }
+        }
+      }
+    }
+    
+    // Fallback to reading directly from database file if API is not available or failed
+    try {
+      console.warn('[main] API not available or failed after retries. Reading workspaces directly from database file.');
+      const dataDir = path.join(os.homedir(), '.projax');
+      const dbPath = path.join(dataDir, 'data.json');
+      if (fs.existsSync(dbPath)) {
+        const dbContent = fs.readFileSync(dbPath, 'utf-8');
+        const db = JSON.parse(dbContent);
+        const workspaces = db.workspaces || [];
+        console.log(`[main] Found ${workspaces.length} workspace(s) in database file.`);
+        return workspaces;
+      }
+    } catch (fileError) {
+      console.warn('[main] Could not read workspaces from database file:', fileError);
+    }
+    
+    // If we still don't have workspaces, return empty array
+    console.warn('[main] No workspaces found, returning empty array.');
+    return [];
   } catch (error) {
     console.error('Error getting workspaces:', error);
-    throw error;
+    // Return empty array instead of throwing to prevent app crash
+    return [];
   }
 });
 
 ipcMain.handle('add-workspace', async (_, workspace: any) => {
   try {
-    const response = await fetch('http://localhost:3001/api/workspaces', {
+    // Try to find the correct API port
+    const ports = [38124, 38125, 38126, 38127, 38128, 3001];
+    let apiBaseUrl = '';
+    
+    for (const port of ports) {
+      try {
+        const response = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(500) });
+        if (response.ok) {
+          apiBaseUrl = `http://localhost:${port}/api`;
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+    
+    if (!apiBaseUrl) {
+      throw new Error('API server not found');
+    }
+    
+    const response = await fetch(`${apiBaseUrl}/workspaces`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(workspace),

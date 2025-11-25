@@ -1,5 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ElectronAPI } from '../../main/preload';
 import './WorkspaceList.css';
+
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI;
+  }
+}
 
 type Workspace = any;
 
@@ -28,6 +35,31 @@ const WorkspaceList: React.FC<WorkspaceListProps> = ({
   onKeyboardFocusChange,
   workspaceProjects,
 }) => {
+  const [displaySettings, setDisplaySettings] = useState({
+    showName: true,
+    showDescription: true,
+    showPath: true,
+    showTags: true,
+    showProjectCount: true,
+  });
+
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    loadDisplaySettings();
+  }, []);
+
+  const loadDisplaySettings = async () => {
+    try {
+      const settings = await window.electronAPI.getSettings();
+      if (settings.display?.workspaceTiles) {
+        setDisplaySettings(settings.display.workspaceTiles);
+      }
+    } catch (error) {
+      console.error('Error loading display settings:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="workspace-list-loading">
@@ -44,8 +76,6 @@ const WorkspaceList: React.FC<WorkspaceListProps> = ({
       </div>
     );
   }
-
-  const listRef = React.useRef<HTMLDivElement>(null);
 
   return (
     <div 
@@ -92,17 +122,19 @@ const WorkspaceList: React.FC<WorkspaceListProps> = ({
           >
             <div className="workspace-item-header">
               <div className="workspace-name-wrapper">
-                <h3 className="workspace-name">{workspace.name}</h3>
+                {displaySettings.showName && <h3 className="workspace-name">{workspace.name}</h3>}
               </div>
-              {projectCount > 0 && (
+              {displaySettings.showProjectCount && (
                 <span className="workspace-project-count">{projectCount}</span>
               )}
             </div>
-            {workspace.description && (
+            {displaySettings.showDescription && workspace.description && (
               <p className="workspace-description">{workspace.description}</p>
             )}
+            {displaySettings.showPath && (
             <p className="workspace-path">{getDisplayPath(workspace.workspace_file_path)}</p>
-            {workspace.tags && workspace.tags.length > 0 && (
+            )}
+            {displaySettings.showTags && workspace.tags && workspace.tags.length > 0 && (
               <div className="workspace-tags">
                 {workspace.tags.map((tag: string) => (
                   <span key={tag} className="workspace-tag">{tag}</span>

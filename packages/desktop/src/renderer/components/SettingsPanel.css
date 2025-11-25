@@ -1,0 +1,42 @@
+.settings-panel {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.settings-panel-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.settings-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+  min-width: 0;
+}
+
+/* Custom scrollbar */
+.settings-panel-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.settings-panel-content::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+.settings-panel-content::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+.settings-panel-content::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}
+

@@ -15,6 +15,13 @@ const defaultData: DatabaseSchema = {
   project_settings: [],
 };
 
+/**
+ * Normalize a path by removing trailing slashes and resolving to absolute path
+ */
+function normalizePath(p: string): string {
+  return path.normalize(path.resolve(p)).replace(/[/\\]+$/, ''); // Remove trailing slashes
+}
+
 class JSONDatabase {
   private data: DatabaseSchema;
   private dbPath: string;
@@ -121,6 +128,21 @@ class JSONDatabase {
       fs.writeFileSync(this.dbPath, JSON.stringify(this.data, null, 2), 'utf-8');
     } catch (error) {
       console.error('Error writing database file:', error);
+    }
+  }
+
+  /**
+   * Reload data from file (useful after external writes)
+   */
+  reload(): void {
+    if (fs.existsSync(this.dbPath)) {
+      try {
+        const fileContent = fs.readFileSync(this.dbPath, 'utf-8');
+        this.data = JSON.parse(fileContent);
+        this.migrateData();
+      } catch (error) {
+        console.error('Error reloading database file:', error);
+      }
     }
   }
 
@@ -558,8 +580,14 @@ class JSONDatabase {
   addProjectToWorkspace(workspaceId: number, projectPath: string): WorkspaceProject {
     const workspaceProjects = this.data.workspace_projects.filter(wp => wp.workspace_id === workspaceId);
     
-    // Check if project already in workspace
-    const existing = workspaceProjects.find(wp => wp.project_path === projectPath);
+    // Normalize the incoming path for comparison
+    const normalizedPath = normalizePath(projectPath);
+    
+    // Check if project already in workspace (normalize paths for comparison)
+    const existing = workspaceProjects.find(wp => {
+      const normalizedExisting = normalizePath(wp.project_path);
+      return normalizedExisting === normalizedPath;
+    });
     if (existing) {
       throw new Error('Project already in workspace');
     }
@@ -572,10 +600,11 @@ class JSONDatabase {
       ? Math.max(...workspaceProjects.map(wp => wp.order))
       : -1;
     
+    // Store normalized absolute path
     const workspaceProject: WorkspaceProject = {
       id: newId,
       workspace_id: workspaceId,
-      project_path: projectPath,
+      project_path: normalizedPath,
       order: maxOrder + 1,
       created_at: Math.floor(Date.now() / 1000),
     };
@@ -592,8 +621,14 @@ class JSONDatabase {
   }
 
   removeProjectFromWorkspace(workspaceId: number, projectPath: string): void {
+    // Normalize the incoming path for comparison (same as addProjectToWorkspace)
+    const normalizedPath = normalizePath(projectPath);
+    
     const index = this.data.workspace_projects.findIndex(
-      wp => wp.workspace_id === workspaceId && wp.project_path === projectPath
+      wp => {
+        const normalizedExisting = normalizePath(wp.project_path);
+        return wp.workspace_id === workspaceId && normalizedExisting === normalizedPath;
+      }
     );
     if (index === -1) {
       throw new Error('Project not found in workspace');
@@ -633,6 +668,8 @@ class JSONDatabase {
         id: newId,
         project_id: projectId,
         script_sort_order: 'default',
+        scripts_path: null,
+        editor: null,
         updated_at: Math.floor(Date.now() / 1000),
       };
       this.data.project_settings.push(settings);
@@ -657,6 +694,15 @@ export function getDatabase(): JSONDatabase {
 
 export function resetDatabase(): void {
   dbInstance = null;
+}
+
+/**
+ * Reload database from file (useful after external writes)
+ */
+export function reloadDatabase(): void {
+  if (dbInstance) {
+    dbInstance.reload();
+  }
 }
 
 export { JSONDatabase };

@@ -73,7 +73,7 @@ async function main() {
   console.log(`\n🎯 Starting ${bumpType} release...\n`);
 
   // 1. Bump version
-  exec(`npm run version:${bumpType}`, 'Version bump');
+  exec(`pnpm run version:${bumpType}`, 'Version bump');
 
   // Get the new version
   const packageJson = require('../package.json');
@@ -83,10 +83,17 @@ async function main() {
   exec(`node scripts/bump-version.js ${newVersion}`, 'Sync all package versions');
 
   // 2. Install dependencies
-  exec('npm install', 'Install dependencies');
+  console.log('\n📦 Install dependencies...');
+  try {
+    execSync('pnpm install', { stdio: 'inherit' });
+    console.log('✓ Install dependencies completed');
+  } catch (error) {
+    console.log('⚠️  Install dependencies had warnings/errors, but continuing...');
+    console.log('✓ Continuing with build (dependencies may already be installed)');
+  }
 
   // 3. Build all packages
-  exec('npm run build', 'Build all packages');
+  exec('pnpm -r run build', 'Build all packages');
 
   // 3.5 Copy README to CLI package for npm
   console.log('\n📄 Copying README to CLI package...');
@@ -96,13 +103,13 @@ async function main() {
   // 3.6 Package VS Code extension
   console.log('\n📦 Packaging VS Code extension...');
   exec('mkdir -p release', 'Create release directory');
-  exec('npm run package --workspace=packages/vscode-extension', 'Package .vsix file');
+  exec('pnpm --filter projax-vscode run package', 'Package .vsix file');
   console.log('✓ VS Code extension packaged to ./release/');
 
-  // 3.7 Test with npm link (skip if permission denied)
-  console.log('\n🧪 Testing commands with npm link...');
+  // 3.7 Test with pnpm link (skip if permission denied)
+  console.log('\n🧪 Testing commands with pnpm link...');
   try {
-    execSync('cd packages/cli && npm link', { stdio: 'inherit' });
+    execSync('cd packages/cli && pnpm link --global', { stdio: 'inherit' });
   
   console.log('\n  Testing core commands:');
   exec('prx --version', '  - prx --version');

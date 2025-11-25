@@ -2306,11 +2306,124 @@ program
     }
   });
 
+// MCP Server command
+program
+  .command('mcp')
+  .description('Start Projax MCP (Model Context Protocol) server for AI tools')
+  .action(async () => {
+    try {
+      // Check if MCP server package is available
+      const mcpServerPath = path.join(__dirname, '..', '..', 'mcp-server', 'dist', 'index.js');
+      const isLocalDev = fs.existsSync(mcpServerPath);
+      
+      if (!isLocalDev) {
+        // Try to find in node_modules (for global install)
+        try {
+          require.resolve('@projax/mcp-server');
+          const { spawn } = require('child_process');
+          const mcpServer = spawn('projax-mcp', [], {
+            stdio: 'inherit',
+            env: process.env,
+          });
+          
+          mcpServer.on('exit', (code) => {
+            process.exit(code || 0);
+          });
+          return;
+        } catch (error) {
+          console.error('Error: MCP server not found.');
+          console.error('\nThe MCP server is not built or installed.');
+          console.error('Please run: npm run build:mcp-server');
+          process.exit(1);
+        }
+      }
+      
+      // Local development mode
+      const { spawn } = require('child_process');
+      const mcpServer = spawn('node', [mcpServerPath], {
+        stdio: 'inherit',
+        env: process.env,
+      });
+      
+      mcpServer.on('exit', (code) => {
+        process.exit(code || 0);
+      });
+    } catch (error) {
+      console.error('Error starting MCP server:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// MCP Config command
+program
+  .command('mcp-config')
+  .description('Display MCP server configuration for Cursor or VS Code')
+  .option('--cursor', 'Show Cursor-specific configuration')
+  .option('--vscode', 'Show VS Code-specific configuration')
+  .action(async (options) => {
+    try {
+      // Find prx command path
+      let prxPath = 'prx';
+      try {
+        prxPath = execSync('which prx', { encoding: 'utf-8' }).trim();
+      } catch {
+        // If which fails, use 'prx' as default
+      }
+      
+      const cursorConfig = {
+        mcpServers: {
+          projax: {
+            command: prxPath,
+            args: ['mcp'],
+          },
+        },
+      };
+      
+      const vscodeConfig = {
+        "mcp.servers": {
+          projax: {
+            command: prxPath,
+            args: ['mcp'],
+          },
+        },
+      };
+      
+      console.log('\n╔═══════════════════════════════════════════════════════╗');
+      console.log('║         Projax MCP Server Configuration           ║');
+      console.log('╚═══════════════════════════════════════════════════════╝\n');
+      
+      if (options.vscode) {
+        console.log('VS Code Configuration (settings.json):');
+        console.log(JSON.stringify(vscodeConfig, null, 2));
+      } else if (options.cursor) {
+        console.log('Cursor Configuration (~/.cursor/mcp.json):');
+        console.log(JSON.stringify(cursorConfig, null, 2));
+      } else {
+        // Show both
+        console.log('Cursor Configuration (~/.cursor/mcp.json):');
+        console.log(JSON.stringify(cursorConfig, null, 2));
+        console.log('\nVS Code Configuration (settings.json):');
+        console.log(JSON.stringify(vscodeConfig, null, 2));
+      }
+      
+      console.log('\n📝 Instructions:');
+      console.log('1. Copy the configuration above');
+      console.log('2. For Cursor: Paste into ~/.cursor/mcp.json (or use Cursor Settings > MCP)');
+      console.log('3. For VS Code: Paste into settings.json (or use MCP extension)');
+      console.log('4. Restart your editor');
+      console.log('\n💡 Test with: Ask your AI assistant about your current project context');
+      
+    } catch (error) {
+      console.error('Error displaying configuration:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
 // Handle script execution before parsing
 // Check if first argument is not a known command
 (async () => {
   const args = process.argv.slice(2);
-  const knownCommands = ['prxi', 'i', 'add', 'list', 'scan', 'remove', 'rn', 'rename', 'cd', 'pwd', 'run', 'ps', 'stop', 'web', 'desktop', 'ui', 'scripts', 'scan-ports', 'api', 'docs', 'vscode-extension', 'extension', 'ext', 'desc', 'description', 'tags', 'open', 'files', 'urls', 'workspace', 'ws', 'backup', 'restore', '--help', '-h', '--version', '-V'];
+  const knownCommands = ['prxi', 'i', 'add', 'list', 'scan', 'remove', 'rn', 'rename', 'cd', 'pwd', 'run', 'ps', 'stop', 'web', 'desktop', 'ui', 'scripts', 'scan-ports', 'api', 'docs', 'vscode-extension', 'extension', 'ext', 'desc', 'description', 'tags', 'open', 'files', 'urls', 'workspace', 'ws', 'backup', 'restore', 'mcp', 'mcp-config', '--help', '-h', '--version', '-V'];
 
   // If we have at least 1 argument and first is not a known command, treat as project identifier
   if (args.length >= 1 && !knownCommands.includes(args[0])) {

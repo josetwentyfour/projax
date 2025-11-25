@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { ElectronAPI } from '../../main/preload';
 import './WorkspaceDetails.css';
+
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI;
+  }
+}
 
 type Workspace = any;
 type Project = any;
@@ -31,8 +38,22 @@ const WorkspaceDetails: React.FC<WorkspaceDetailsProps> = ({
   const [projectsData, setProjectsData] = useState<Array<{ tracked: boolean; project?: Project; path: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [addingProject, setAddingProject] = useState<string | null>(null);
+  const [removingProject, setRemovingProject] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [showLinkProjectDropdown, setShowLinkProjectDropdown] = useState(false);
+  const [availableProjects, setAvailableProjects] = useState<Project[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [projectSearchQuery, setProjectSearchQuery] = useState('');
+  const [showRemoveProjectModal, setShowRemoveProjectModal] = useState(false);
+  const [projectToRemove, setProjectToRemove] = useState<string | null>(null);
+  const [removeConfirmText, setRemoveConfirmText] = useState('');
+  const [removeConfirmationCode, setRemoveConfirmationCode] = useState('');
+  const [displaySettings, setDisplaySettings] = useState({
+    showProjectList: true,
+    showDescription: true,
+    showPath: true,
+  });
 
   useEffect(() => {
     if (workspace) {
@@ -43,8 +64,36 @@ const WorkspaceDetails: React.FC<WorkspaceDetailsProps> = ({
       setEditingDescription(false);
       loadWorkspaceProjects();
       loadAllTags();
+      loadDisplaySettings();
+      loadAvailableProjects();
     }
   }, [workspace?.id]); // Only re-run when workspace ID changes
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showLinkProjectDropdown && !target.closest('.link-project-dropdown-wrapper')) {
+        setShowLinkProjectDropdown(false);
+      }
+    };
+
+    if (showLinkProjectDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showLinkProjectDropdown]);
+
+  const loadDisplaySettings = async () => {
+    try {
+      const settings = await window.electronAPI.getSettings();
+      if (settings.display?.workspaceDetails) {
+        setDisplaySettings(settings.display.workspaceDetails);
+      }
+    } catch (error) {
+      console.error('Error loading display settings:', error);
+    }
+  };
 
   const loadAllTags = async () => {
     try {
@@ -55,6 +104,27 @@ const WorkspaceDetails: React.FC<WorkspaceDetailsProps> = ({
       }
     } catch (error) {
       console.error('Error loading tags:', error);
+    }
+  };
+
+  const loadAvailableProjects = async () => {
+    try {
+      setLoadingProjects(true);
+      const apiBaseUrl = await getApiBaseUrl();
+      if (!apiBaseUrl) {
+        setAvailableProjects([]);
+        return;
+      }
+      const response = await fetch(`${apiBaseUrl}/projects`);
+      if (response.ok) {
+        const projects = await response.json();
+        setAvailableProjects(Array.isArray(projects) ? projects : []);
+      }
+    } catch (error) {
+      console.error('Error loading available projects:', error);
+      setAvailableProjects([]);
+    } finally {
+      setLoadingProjects(false);
     }
   };
 
@@ -191,9 +261,29 @@ const WorkspaceDetails: React.FC<WorkspaceDetailsProps> = ({
     }
   };
 
-  const handleOpenWorkspace = () => {
+  const handleOpenWorkspace = async () => {
     if (onOpenWorkspace) {
       onOpenWorkspace(workspace);
+    }
+    // Update last_opened timestamp
+    if (workspace) {
+      try {
+        const apiBaseUrl = await getApiBaseUrl();
+        if (apiBaseUrl) {
+          const response = await fetch(`${apiBaseUrl}/workspaces/${workspace.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ last_opened: Math.floor(Date.now() / 1000) }),
+          });
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+            console.error('Error updating workspace last_opened:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Error updating workspace last_opened:', error);
+        // Don't show error to user, just log it
+      }
     }
   };
 
@@ -208,6 +298,78 @@ const WorkspaceDetails: React.FC<WorkspaceDetailsProps> = ({
       alert(`Failed to add project: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setAddingProject(null);
+    }
+  };
+
+  const handleRemoveProjectFromWorkspace = async (projectPath: string) => {
+    if (!workspace) return;
+    
+    // Show confirmation modal with random string
+    const code = generateRandomString();
+    setRemoveConfirmationCode(code);
+    setProjectToRemove(projectPath);
+    setShowRemoveProjectModal(true);
+    setRemoveConfirmText('');
+  };
+
+  const confirmRemoveProject = async () => {
+    if (!workspace || !projectToRemove || removeConfirmText !== removeConfirmationCode) {
+      return;
+    }
+
+    let apiBaseUrl: string | null = null;
+    try {
+      setRemovingProject(projectToRemove);
+      apiBaseUrl = await getApiBaseUrl();
+      if (!apiBaseUrl) {
+        alert('API server not available. Please ensure the PROJAX API server is running.');
+        return;
+      }
+
+      // Use the exact path as stored (no normalization needed - use it as-is)
+      // URL encode the project path and send as query parameter
+      const encodedPath = encodeURIComponent(projectToRemove);
+      
+      const response = await fetch(`${apiBaseUrl}/workspaces/${workspace.id}/projects?project_path=${encodedPath}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to remove project from workspace';
+        try {
+          const error = await response.json();
+          errorMessage = error.error || errorMessage;
+        } catch {
+          // If response is not JSON, use status text
+          errorMessage = `${errorMessage}: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      // Reload projects and update workspace
+      await loadWorkspaceProjects();
+      if (onWorkspaceUpdate) {
+        const updated = await fetch(`${apiBaseUrl}/workspaces/${workspace.id}`).then(r => r.json());
+        onWorkspaceUpdate(updated);
+      }
+      
+      // Close modal
+      setShowRemoveProjectModal(false);
+      setProjectToRemove(null);
+      setRemoveConfirmText('');
+      setRemoveConfirmationCode('');
+    } catch (error) {
+      console.error('Error removing project from workspace:', error);
+      console.error('Project path:', projectToRemove);
+      console.error('API Base URL:', apiBaseUrl);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (errorMessage.includes('API server not found') || errorMessage.includes('endpoint not found') || errorMessage.includes('Failed to fetch')) {
+        alert('API server not available. Please ensure the PROJAX API server is running.');
+      } else {
+        alert(`Failed to remove project: ${errorMessage}`);
+      }
+    } finally {
+      setRemovingProject(null);
     }
   };
 
@@ -231,11 +393,13 @@ const WorkspaceDetails: React.FC<WorkspaceDetailsProps> = ({
                 }}
                 autoFocus
                 className="workspace-name-input"
+                aria-label="Workspace name"
+                placeholder="Workspace name"
               />
             </div>
           ) : (
             <h2 className="workspace-name-editable" onClick={() => setEditingName(true)} title="Click to rename">
-              {workspace.name}
+              {workspace.name} <span className="workspace-id">- workspace (#{workspace.id})</span>
             </h2>
           )}
           {editingDescription ? (
@@ -255,10 +419,12 @@ const WorkspaceDetails: React.FC<WorkspaceDetailsProps> = ({
                 autoFocus
                 className="workspace-description-input"
                 placeholder="Add a description for this workspace... (⌘+Enter to save, Esc to cancel)"
+                aria-label="Workspace description"
               />
             </div>
           ) : (
             <div>
+              {displaySettings.showDescription && (
               <p 
                 className="workspace-description" 
                 onClick={() => setEditingDescription(true)}
@@ -266,7 +432,22 @@ const WorkspaceDetails: React.FC<WorkspaceDetailsProps> = ({
               >
                 {workspace.description || 'Click to add a description...'}
               </p>
-              <p className="workspace-path">{workspace.workspace_file_path}</p>
+              )}
+              {displaySettings.showPath && (
+              <p 
+                className="workspace-path clickable-path" 
+                onClick={async () => {
+                  try {
+                    await window.electronAPI.openFilePath(workspace.workspace_file_path);
+                  } catch (error) {
+                    console.error('Error opening file path:', error);
+                  }
+                }}
+                title="Click to reveal in file manager"
+              >
+                {workspace.workspace_file_path}
+              </p>
+              )}
             </div>
           )}
         </div>
@@ -282,8 +463,140 @@ const WorkspaceDetails: React.FC<WorkspaceDetailsProps> = ({
         </div>
       </div>
 
+      {displaySettings.showProjectList && (
       <div className="workspace-section">
+        <div className="workspace-section-header">
         <h3>Workspace Projects ({projectsData.length})</h3>
+          <div className="link-project-dropdown-wrapper">
+            <button
+              type="button"
+              className="btn btn-secondary btn-small"
+              onClick={() => {
+                setShowLinkProjectDropdown(!showLinkProjectDropdown);
+                if (!showLinkProjectDropdown) {
+                  loadAvailableProjects();
+                  setProjectSearchQuery('');
+                }
+              }}
+            >
+              Link Project
+            </button>
+            {showLinkProjectDropdown && (
+              <div className="link-project-dropdown">
+                <div className="dropdown-header">Select a project to link</div>
+                <div className="dropdown-search-wrapper">
+                  <label htmlFor="project-search-input" className="sr-only">Search projects</label>
+                  <input
+                    id="project-search-input"
+                    type="text"
+                    className="dropdown-search-input"
+                    placeholder="Search projects..."
+                    value={projectSearchQuery}
+                    onChange={(e) => setProjectSearchQuery(e.target.value)}
+                    autoFocus
+                    aria-label="Search projects"
+                  />
+                </div>
+                <div className="dropdown-options">
+                  {loadingProjects ? (
+                    <div className="dropdown-loading">Loading projects...</div>
+                  ) : (() => {
+                    const filteredProjects = availableProjects
+                      .filter(p => !projectsData.some(pd => pd.tracked && pd.project?.id === p.id))
+                      .filter(p => {
+                        if (!projectSearchQuery.trim()) return true;
+                        const query = projectSearchQuery.toLowerCase();
+                        return p.name.toLowerCase().includes(query) || 
+                               p.path.toLowerCase().includes(query) ||
+                               (p.description && p.description.toLowerCase().includes(query));
+                      });
+                    
+                    if (availableProjects.length === 0) {
+                      return <div className="dropdown-empty">No projects available</div>;
+                    }
+                    
+                    if (filteredProjects.length === 0) {
+                      return <div className="dropdown-empty">No projects match your search</div>;
+                    }
+                    
+                    return filteredProjects.map((project) => (
+                        <div
+                          key={project.id}
+                          className="dropdown-option"
+                          onClick={async () => {
+                            try {
+                              const apiBaseUrl = await getApiBaseUrl();
+                              if (!apiBaseUrl || !workspace) return;
+                              
+                              const response = await fetch(`${apiBaseUrl}/workspaces/${workspace.id}/projects`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ project_path: project.path }),
+                              });
+                              
+                              if (response.ok) {
+                                await loadWorkspaceProjects();
+                                if (onWorkspaceUpdate) {
+                                  const updated = await fetch(`${apiBaseUrl}/workspaces/${workspace.id}`).then(r => r.json());
+                                  onWorkspaceUpdate(updated);
+                                }
+                                setShowLinkProjectDropdown(false);
+                              } else {
+                                const error = await response.json();
+                                alert(error.error || 'Failed to link project to workspace');
+                              }
+                            } catch (error) {
+                              console.error('Error linking project to workspace:', error);
+                              alert(`Failed to link project: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                            }
+                          }}
+                        >
+                          <div className="dropdown-option-name">{project.name}</div>
+                          <div className="dropdown-option-path">{project.path}</div>
+                        </div>
+                      ));
+                  })()}
+                </div>
+                <div className="dropdown-divider"></div>
+                <div
+                  className="dropdown-option dropdown-option-browse"
+                  onClick={async () => {
+                    try {
+                      const selectedPath = await window.electronAPI.selectDirectory();
+                      if (selectedPath && workspace) {
+                        const apiBaseUrl = await getApiBaseUrl();
+                        if (!apiBaseUrl) return;
+                        
+                        const response = await fetch(`${apiBaseUrl}/workspaces/${workspace.id}/projects`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ project_path: selectedPath }),
+                        });
+                        
+                        if (response.ok) {
+                          await loadWorkspaceProjects();
+                          if (onWorkspaceUpdate) {
+                            const updated = await fetch(`${apiBaseUrl}/workspaces/${workspace.id}`).then(r => r.json());
+                            onWorkspaceUpdate(updated);
+                          }
+                          setShowLinkProjectDropdown(false);
+                        } else {
+                          const error = await response.json();
+                          alert(error.error || 'Failed to add project to workspace');
+                        }
+                      }
+                    } catch (error) {
+                      console.error('Error adding project to workspace:', error);
+                      alert(`Failed to add project: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    }
+                  }}
+                >
+                  <div className="dropdown-option-name">Browse for folder...</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
         {loading ? (
           <div className="loading-spinner">
             <div className="spinner"></div>
@@ -322,7 +635,24 @@ const WorkspaceDetails: React.FC<WorkspaceDetailsProps> = ({
                       {displayName}
                     </h3>
                   </div>
-                  <p className="project-tile-path">
+                  <p 
+                    className="project-tile-path clickable-path"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      const pathToOpen = item.tracked && item.project ? item.project.path : item.path;
+                      if (pathToOpen) {
+                        window.electronAPI.openInFiles(pathToOpen).catch((error) => {
+                          console.error('Error opening path:', error);
+                        });
+                      }
+                    }}
+                    onMouseDown={(e) => {
+                      // Prevent tile click from firing when clicking path
+                      e.stopPropagation();
+                    }}
+                    title="Click to open in Finder/Explorer"
+                  >
                     {item.tracked && item.project 
                       ? (item.project.description || getDisplayPath(item.project.path))
                       : item.path
@@ -335,8 +665,8 @@ const WorkspaceDetails: React.FC<WorkspaceDetailsProps> = ({
                       ))}
                     </div>
                   )}
+                  <div className="project-tile-actions">
                   {!item.tracked && (
-                    <div className="project-tile-actions">
                       <button
                         type="button"
                         className="btn-add-project"
@@ -344,18 +674,31 @@ const WorkspaceDetails: React.FC<WorkspaceDetailsProps> = ({
                           e.stopPropagation();
                           handleAddProjectToProjax(item.path);
                         }}
-                        disabled={addingProject === item.path}
+                        disabled={addingProject === item.path || removingProject === item.path}
                       >
                         {addingProject === item.path ? 'Adding...' : 'Add to PROJAX'}
                       </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn-remove-project"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveProjectFromWorkspace(item.path);
+                      }}
+                      disabled={removingProject === item.path || addingProject === item.path}
+                      title="Remove from workspace"
+                    >
+                      {removingProject === item.path ? 'Removing...' : 'Remove'}
+                    </button>
                     </div>
-                  )}
                 </div>
               );
             })}
           </div>
         )}
       </div>
+      )}
 
       {onRemoveWorkspace && (
         <div className="danger-zone">
@@ -384,13 +727,18 @@ const WorkspaceDetails: React.FC<WorkspaceDetailsProps> = ({
             <p className="modal-instruction">
               Type <code className="confirmation-code">{confirmationCode}</code> to confirm:
             </p>
+            <label htmlFor="delete-confirmation-input" className="sr-only">
+              Confirmation code
+            </label>
             <input
+              id="delete-confirmation-input"
               type="text"
               value={deleteConfirmText}
               onChange={(e) => setDeleteConfirmText(e.target.value)}
               placeholder="Enter confirmation code"
               className="confirmation-input"
               autoFocus
+              aria-label="Enter confirmation code to delete workspace"
             />
             <div className="modal-actions">
               <button
@@ -407,6 +755,68 @@ const WorkspaceDetails: React.FC<WorkspaceDetailsProps> = ({
                 disabled={deleteConfirmText !== confirmationCode}
               >
                 Delete Workspace
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRemoveProjectModal && (
+        <div className="modal-overlay" onClick={() => { 
+          setShowRemoveProjectModal(false); 
+          setRemoveConfirmText(''); 
+          setProjectToRemove(null);
+          setRemoveConfirmationCode('');
+        }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Remove Project from Workspace</h3>
+            <p className="modal-warning">
+              This will remove the project from the workspace <strong>"{workspace?.name}"</strong>.
+              <br /><br />
+              The project will be removed from the workspace file.
+              {projectToRemove && (
+                <>
+                  <br /><br />
+                  <strong>Project:</strong> {projectToRemove}
+                </>
+              )}
+            </p>
+            <p className="modal-instruction">
+              Type <code className="confirmation-code">{removeConfirmationCode}</code> to confirm:
+            </p>
+            <label htmlFor="remove-confirmation-input" className="sr-only">
+              Confirmation code
+            </label>
+            <input
+              id="remove-confirmation-input"
+              type="text"
+              value={removeConfirmText}
+              onChange={(e) => setRemoveConfirmText(e.target.value)}
+              placeholder="Enter confirmation code"
+              className="confirmation-input"
+              autoFocus
+              aria-label="Enter confirmation code to remove project"
+            />
+            <div className="modal-actions">
+              <button
+                type="button"
+                onClick={() => { 
+                  setShowRemoveProjectModal(false); 
+                  setRemoveConfirmText(''); 
+                  setProjectToRemove(null);
+                  setRemoveConfirmationCode('');
+                }}
+                className="btn btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRemoveProject}
+                className="btn btn-danger"
+                disabled={removeConfirmText !== removeConfirmationCode}
+              >
+                Remove Project
               </button>
             </div>
           </div>

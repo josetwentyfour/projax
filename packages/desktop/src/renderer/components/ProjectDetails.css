@@ -36,7 +36,7 @@
 }
 
 .breadcrumb-current {
-  color: var(--text-primary);
+  color: var(--accent-cyan);
   font-size: 18px;
   font-weight: 600;
   font-family: inherit;
@@ -353,6 +353,213 @@
   font-size: 11px;
   color: var(--text-tertiary);
   font-family: 'SF Mono', 'Monaco', monospace;
+}
+
+.project-section {
+  margin-bottom: 2rem;
+}
+
+.project-section h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 1rem 0;
+  letter-spacing: 0.2px;
+}
+
+.project-settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.setting-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.setting-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.setting-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin: 0;
+  font-style: italic;
+}
+
+.setting-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.setting-display:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-hover);
+}
+
+.setting-value {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-family: 'SF Mono', 'Monaco', monospace;
+}
+
+.setting-edit-hint {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.setting-input-group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.setting-input {
+  flex: 1;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Monaco', monospace;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  transition: all 0.15s ease;
+}
+
+.setting-input::placeholder {
+  color: var(--text-tertiary);
+  opacity: 0.6;
+}
+
+.setting-input:focus {
+  outline: none;
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 2px rgba(57, 197, 207, 0.1);
+  background: var(--bg-hover);
+}
+
+.setting-select {
+  flex: 1;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.setting-select:focus {
+  outline: none;
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 2px rgba(57, 197, 207, 0.1);
+  background: var(--bg-hover);
+}
+
+.workspaces-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+.workspace-item {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.workspace-item:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.workspace-item-header {
+  margin-bottom: 0.5rem;
+}
+
+.workspace-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: 0.2px;
+}
+
+.workspace-item-description {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0.25rem 0;
+  line-height: 1.4;
+}
+
+.workspace-item-path {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin: 0.5rem 0 0 0;
+  font-family: 'SF Mono', 'Monaco', monospace;
+  word-break: break-all;
+  opacity: 0.8;
+}
+
+.empty-state {
+  color: var(--text-secondary);
+  font-style: italic;
+  text-align: center;
+  padding: 2rem;
+  font-size: 12px;
+}
+
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  gap: 1rem;
+}
+
+.loading-spinner p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin: 0;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent-cyan);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .jenkins-placeholder {

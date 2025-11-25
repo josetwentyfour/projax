@@ -8,6 +8,7 @@
   flex-shrink: 0;
   font-size: 11px;
   font-family: 'SF Mono', 'Monaco', monospace;
+  -webkit-app-region: drag;
 }
 
 .status-bar-content {
@@ -16,6 +17,20 @@
   gap: 1rem;
   width: 100%;
   justify-content: space-between;
+}
+
+.status-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.status-logo {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--accent-cyan);
+  font-family: 'SF Mono', 'Monaco', monospace;
 }
 
 .status-version {
@@ -66,5 +81,16 @@
   color: var(--text-tertiary);
   font-size: 11px;
   font-family: 'SF Mono', 'Monaco', monospace;
+}
+
+/* Make interactive elements in status bar non-draggable */
+.status-bar-content,
+.status-left,
+.status-right,
+.status-indicator,
+.status-text,
+.status-dot,
+.api-port {
+  -webkit-app-region: no-drag;
 }
 

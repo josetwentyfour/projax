@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './ProjectSearch.css'; // Reuse the same styles
 
-export type WorkspaceSortType = 'name-asc' | 'name-desc' | 'recent' | 'projects';
+export type WorkspaceSortType = 'name-asc' | 'name-desc' | 'recent' | 'recently-opened' | 'projects';
 
 interface WorkspaceSearchProps {
   onSearchChange: (query: string) => void;
@@ -47,6 +47,7 @@ const WorkspaceSearch: React.FC<WorkspaceSearchProps> = ({ onSearchChange, onSor
     { value: 'name-asc', label: 'Name (A-Z)' },
     { value: 'name-desc', label: 'Name (Z-A)' },
     { value: 'recent', label: 'Recently Created' },
+    { value: 'recently-opened', label: 'Recently Opened' },
     { value: 'projects', label: 'Most Projects' },
   ];
 

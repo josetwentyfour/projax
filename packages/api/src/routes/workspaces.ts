@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDatabase } from '../database';
+import { getDatabase, reloadDatabase } from '../database';
 import { parseWorkspaceFile, generateWorkspaceFile, validateWorkspacePath } from 'projax-core';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -7,6 +7,11 @@ import * as os from 'os';
 
 const router = Router();
 const db = getDatabase();
+
+// Helper function to normalize paths (matches database normalization)
+function normalizePath(p: string): string {
+  return path.normalize(path.resolve(p)).replace(/[/\\]+$/, '');
+}
 
 // Helper function to get PROJAX workspaces directory
 function getProjaxWorkspacesDir(): string {
@@ -125,12 +130,13 @@ router.put('/:id', (req, res) => {
       return res.status(400).json({ error: 'Invalid workspace ID' });
     }
 
-    const { name, description, tags, workspace_file_path } = req.body;
+    const { name, description, tags, workspace_file_path, last_opened } = req.body;
     const updates: any = {};
 
     if (name !== undefined) updates.name = name;
     if (description !== undefined) updates.description = description;
     if (tags !== undefined) updates.tags = tags;
+    if (last_opened !== undefined) updates.last_opened = last_opened;
     if (workspace_file_path !== undefined) {
       // Only validate if it's not a PROJAX-managed workspace
       const projaxWorkspacesDir = getProjaxWorkspacesDir();
@@ -247,15 +253,23 @@ router.post('/:id/projects', (req, res) => {
 });
 
 // Remove project from workspace
-router.delete('/:id/projects/:projectPath', (req, res) => {
+// Use query parameter to handle paths with slashes
+router.delete('/:id/projects', (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ error: 'Invalid workspace ID' });
     }
 
-    const projectPath = decodeURIComponent(req.params.projectPath);
-    db.removeProjectFromWorkspace(id, projectPath);
+    // Get project path from query parameter
+    const projectPath = req.query.project_path as string;
+    if (!projectPath) {
+      return res.status(400).json({ error: 'project_path query parameter is required' });
+    }
+    
+    // Decode the path if it was URL encoded
+    const decodedPath = decodeURIComponent(projectPath);
+    db.removeProjectFromWorkspace(id, decodedPath);
     
     // Regenerate workspace file to remove project
     try {
@@ -431,6 +445,87 @@ router.post('/:id/regenerate-file', (req, res) => {
     } else {
       res.status(404).json({ error: 'Workspace not found' });
     }
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// Sync workspace from file (updates database to match workspace file)
+router.post('/:id/sync-from-file', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid workspace ID' });
+    }
+
+    const workspace = db.getWorkspace(id);
+    if (!workspace) {
+      return res.status(404).json({ error: 'Workspace not found' });
+    }
+
+    // Check if workspace file exists
+    if (!fs.existsSync(workspace.workspace_file_path)) {
+      return res.status(404).json({ error: 'Workspace file does not exist' });
+    }
+
+    // Parse workspace file to get current projects
+    const parsed = parseWorkspaceFile(workspace.workspace_file_path);
+    const fileProjectPaths = parsed.folders.map(f => {
+      // Resolve to absolute path and normalize (same as database normalization)
+      const absolutePath = path.isAbsolute(f.path) ? f.path : path.resolve(process.cwd(), f.path);
+      return normalizePath(absolutePath);
+    });
+
+    // Get current projects in database
+    const dbWorkspaceProjects = db.getWorkspaceProjects(id);
+    const dbProjectPaths = new Set(dbWorkspaceProjects.map(wp => normalizePath(wp.project_path)));
+
+    // Find projects to add (in file but not in database)
+    const projectsToAdd: string[] = [];
+    for (const filePath of fileProjectPaths) {
+      if (!dbProjectPaths.has(filePath)) {
+        projectsToAdd.push(filePath);
+      }
+    }
+
+    // Find projects to remove (in database but not in file)
+    const projectsToRemove: string[] = [];
+    for (const dbPath of dbProjectPaths) {
+      if (!fileProjectPaths.includes(dbPath)) {
+        projectsToRemove.push(dbPath);
+      }
+    }
+
+    // Add missing projects
+    for (const projectPath of projectsToAdd) {
+      try {
+        db.addProjectToWorkspace(id, projectPath);
+      } catch (error) {
+        console.warn(`Failed to add project ${projectPath} to workspace:`, error);
+      }
+    }
+
+    // Remove projects not in file
+    for (const projectPath of projectsToRemove) {
+      try {
+        db.removeProjectFromWorkspace(id, projectPath);
+      } catch (error) {
+        console.warn(`Failed to remove project ${projectPath} from workspace:`, error);
+      }
+    }
+
+    // Force a small delay to ensure file system has flushed the write
+    // The database write is synchronous, but we want to ensure the file is fully written
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Reload database to ensure we have the latest data (in case of concurrent writes)
+    reloadDatabase();
+    
+    res.json({
+      added: projectsToAdd.length,
+      removed: projectsToRemove.length,
+      workspace: db.getWorkspace(id),
+    });
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
   }

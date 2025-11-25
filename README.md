@@ -107,6 +107,79 @@ The API server automatically finds an available port in the range 38124-38133. T
 **API Endpoints:**
 See [packages/api/README.md](packages/api/README.md) for complete API documentation.
 
+## MCP Server - AI Context Integration
+
+**PROJAX MCP Server** provides project and workspace context to AI tools like Cursor and VS Code through the Model Context Protocol (MCP). This enables AI assistants to understand your project structure and relationships.
+
+### 🎯 What is MCP?
+
+The Model Context Protocol is an open standard that lets AI tools access contextual information from your development environment. The PROJAX MCP server exposes:
+
+- **Current Project Context**: Name, path, framework, tags, and git branch
+- **Linked Projects**: Other projects in the same workspace
+- **Workspace Metadata**: Workspace descriptions and relationships
+
+### 📦 Configuration
+
+The MCP server is included with PROJAX. Configure it in your editor:
+
+#### Cursor Configuration
+
+Add to `~/.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "projax": {
+      "command": "prx",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+#### VS Code Configuration
+
+Add to `settings.json`:
+```json
+{
+  "mcp.servers": {
+    "projax": {
+      "command": "prx",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+### 💡 Usage
+
+Once configured, AI assistants automatically receive context about:
+- Your current project when working in any registered PROJAX project
+- Related projects in the same workspace
+- Project metadata (framework, tags, descriptions)
+
+**Example**: If you're working in a frontend project that's part of a workspace with backend and mobile projects, the AI assistant will know about all three projects and can provide context-aware suggestions.
+
+### ⚙️ Commands
+
+```bash
+# Display MCP configuration for copy/paste
+prx mcp-config
+
+# Show Cursor-specific configuration
+prx mcp-config --cursor
+
+# Show VS Code-specific configuration
+prx mcp-config --vscode
+
+# View configuration in Desktop app
+# Settings → MCP Server
+```
+
+### 📚 Documentation
+
+For detailed documentation, see [packages/mcp-server/README.md](packages/mcp-server/README.md)
+
 ## Usage
 
 ### CLI Commands

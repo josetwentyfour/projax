@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 // Note: Renderer runs in browser context, types only
 // The actual data comes from IPC
 type Project = any;
@@ -8,7 +8,7 @@ import ProjectList from './components/ProjectList';
 import ProjectDetails from './components/ProjectDetails';
 import AddProjectModal from './components/AddProjectModal';
 import ProjectSearch, { FilterType, SortType } from './components/ProjectSearch';
-import Settings from './components/Settings';
+import SettingsPanel from './components/SettingsPanel';
 import Titlebar from './components/Titlebar';
 import StatusBar from './components/StatusBar';
 import Terminal from './components/Terminal';
@@ -28,6 +28,7 @@ declare global {
 function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const mainContentRef = useRef<HTMLElement>(null);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,14 +46,79 @@ function App() {
     projectName: string;
   } | null>(null);
   const [activeTab, setActiveTab] = useState<'projects' | 'workspaces'>('projects');
+  
+  // Load default view setting on mount
+  useEffect(() => {
+    const loadDefaultView = async () => {
+      try {
+        const settings = await window.electronAPI.getSettings();
+        if (settings.appearance?.defaultView) {
+          setActiveTab(settings.appearance.defaultView);
+        }
+      } catch (error) {
+        console.error('Error loading default view setting:', error);
+      }
+    };
+    loadDefaultView();
+  }, []);
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<any | null>(null);
-  const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState(true);
   const [showAddWorkspaceModal, setShowAddWorkspaceModal] = useState(false);
   const [gitBranches, setGitBranches] = useState<Map<number, string | null>>(new Map());
   const [workspaceProjectCounts, setWorkspaceProjectCounts] = useState<Map<number, number>>(new Map());
   const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState('');
   const [workspaceSortType, setWorkspaceSortType] = useState<WorkspaceSortType>('name-asc');
+  const [apiReady, setApiReady] = useState(false);
+  const [apiReadyMessage, setApiReadyMessage] = useState('Starting API server...');
+
+  // Check if API server is ready
+  const checkApiReady = async (): Promise<boolean> => {
+    const ports = [38124, 38125, 38126, 38127, 38128, 3001];
+    for (const port of ports) {
+      try {
+        const response = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(500) });
+        if (response.ok) {
+          return true;
+        }
+      } catch {
+        continue;
+      }
+    }
+    return false;
+  };
+
+  // Wait for API server to be ready
+  useEffect(() => {
+    const waitForApi = async () => {
+      setApiReadyMessage('Starting API server...');
+      let attempts = 0;
+      const maxAttempts = 30; // 15 seconds max (30 * 500ms)
+      
+      while (attempts < maxAttempts) {
+        const ready = await checkApiReady();
+        if (ready) {
+          setApiReadyMessage('API server ready!');
+          setApiReady(true);
+          // Small delay to show the "ready" message
+          await new Promise(resolve => setTimeout(resolve, 300));
+          return;
+        }
+        
+        attempts++;
+        if (attempts < maxAttempts) {
+          setApiReadyMessage(`Waiting for API server... (${attempts}/${maxAttempts})`);
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      // If we get here, API didn't start in time
+      setApiReadyMessage('API server not responding. Some features may not work.');
+      setApiReady(true); // Still set to true so app can continue
+    };
+    
+    waitForApi();
+  }, []);
 
   // Clear project selection when switching tabs
   useEffect(() => {
@@ -60,6 +126,9 @@ function App() {
   }, [activeTab]);
 
   useEffect(() => {
+    // Only load data once API is ready
+    if (!apiReady) return;
+    
     loadProjects();
     loadWorkspaces();
     loadRunningProcesses();
@@ -70,15 +139,54 @@ function App() {
       updateGitBranches();
     }, 5000);
     
-    return () => clearInterval(interval);
-  }, []);
+    // Handle menu actions
+    const handleMenuAction = (event: any, action: string, ...args: any[]) => {
+      switch (action) {
+        case 'new-project':
+          setShowAddModal(true);
+          break;
+        case 'new-workspace':
+          setShowAddWorkspaceModal(true);
+          break;
+        case 'open-workspace':
+          // This would need a dialog to select workspace
+          // For now, just show the workspaces tab
+          setActiveTab('workspaces');
+          break;
+        case 'open-directory-as-project':
+          if (args[0]) {
+            handleAddProject(args[0]);
+          }
+          break;
+      }
+    };
+
+    window.electronAPI.onMenuAction(handleMenuAction);
+    
+    return () => {
+      clearInterval(interval);
+      window.electronAPI.removeMenuActionListener(handleMenuAction);
+    };
+  }, [apiReady]);
 
   useEffect(() => {
     // Update git branches when projects change
     if (projects.length > 0) {
-      updateGitBranches();
+      // Small delay to ensure API is ready
+      const timeoutId = setTimeout(() => {
+        updateGitBranches();
+      }, 100);
+      return () => clearTimeout(timeoutId);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects]);
+
+  // Scroll to top when project is selected
+  useEffect(() => {
+    if (selectedProject && mainContentRef.current) {
+      mainContentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [selectedProject]);
 
 
   const loadProjects = async () => {
@@ -110,7 +218,52 @@ function App() {
   const loadWorkspaces = async () => {
     try {
       setLoadingWorkspaces(true);
-      // Try common API ports
+      
+      // First, sync all workspaces from their files to ensure database is up to date
+      try {
+        const ports = [38124, 38125, 38126, 38127, 38128, 3001];
+        let apiBaseUrl = '';
+        
+        for (const port of ports) {
+          try {
+            const response = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(500) });
+            if (response.ok) {
+              apiBaseUrl = `http://localhost:${port}/api`;
+              break;
+            }
+          } catch {
+            continue;
+          }
+        }
+        
+        if (apiBaseUrl) {
+          const workspacesResponse = await fetch(`${apiBaseUrl}/workspaces`);
+          if (workspacesResponse.ok) {
+            const allWorkspaces = await workspacesResponse.json();
+            // Sync each workspace from its file (silently, don't show errors to user)
+            for (const ws of allWorkspaces) {
+              try {
+                await fetch(`${apiBaseUrl}/workspaces/${ws.id}/sync-from-file`, {
+                  method: 'POST',
+                });
+              } catch (error) {
+                // Silently ignore sync errors for individual workspaces
+                console.debug(`Error syncing workspace ${ws.id}:`, error);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // If sync fails, continue anyway - we'll just use what's in the database
+        console.debug('Error syncing workspaces on load:', error);
+      }
+      
+      // Use IPC handler to get workspaces (ensures we use the correct API port)
+      const ws = await window.electronAPI.getWorkspaces();
+      setWorkspaces(ws);
+      
+      // Load project counts for each workspace
+      // Try common API ports to find the correct one
       const ports = [38124, 38125, 38126, 38127, 38128, 3001];
       let apiBaseUrl = '';
       
@@ -126,48 +279,52 @@ function App() {
         }
       }
       
-      if (!apiBaseUrl) {
-        setLoadingWorkspaces(false);
-        return;
-      }
-      
-      const response = await fetch(`${apiBaseUrl}/workspaces`);
-      if (response.ok) {
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const ws = await response.json();
-          setWorkspaces(ws);
-          
-          // Load project counts for each workspace
-          const counts = new Map<number, number>();
-          await Promise.all(
-            ws.map(async (workspace: any) => {
-              try {
-                const projectsResponse = await fetch(`${apiBaseUrl}/workspaces/${workspace.id}/projects`);
-                if (projectsResponse.ok) {
-                  const projects = await projectsResponse.json();
-                  counts.set(workspace.id, projects.length);
-                }
-              } catch (error) {
-                console.error(`Error loading projects for workspace ${workspace.id}:`, error);
+      if (apiBaseUrl) {
+        const counts = new Map<number, number>();
+        // Load counts for all workspaces, ensuring we set a value for each one
+        const countPromises = ws.map(async (workspace: any) => {
+            try {
+            const projectsResponse = await fetch(`${apiBaseUrl}/workspaces/${workspace.id}/projects`, {
+              signal: AbortSignal.timeout(2000),
+            });
+              if (projectsResponse.ok) {
+                const projects = await projectsResponse.json();
+              return { workspaceId: workspace.id, count: Array.isArray(projects) ? projects.length : 0 };
+            } else if (projectsResponse.status === 404) {
+              // Workspace might not exist or have no projects - set count to 0
+              return { workspaceId: workspace.id, count: 0 };
+            } else {
+              // Other error status - set count to 0
+              return { workspaceId: workspace.id, count: 0 };
               }
-            })
-          );
-          setWorkspaceProjectCounts(counts);
-        } else {
-          const text = await response.text();
-          console.error('API returned non-JSON response:', text.substring(0, 200));
-          throw new Error('API server returned invalid response (not JSON)');
-        }
+            } catch (error) {
+            // Silently handle errors - workspace might not exist or API might not be ready
+            // Only log if it's not a network/abort error
+            if (error instanceof Error && !error.name.includes('AbortError') && !error.message.includes('fetch')) {
+              console.debug(`Error loading projects for workspace ${workspace.id}:`, error);
+            }
+            return { workspaceId: workspace.id, count: 0 };
+            }
+        });
+        
+        const results = await Promise.all(countPromises);
+        const updatedCounts = new Map<number, number>();
+        // First, set all workspaces to 0
+        ws.forEach((workspace: any) => {
+          updatedCounts.set(workspace.id, 0);
+        });
+        // Then update with actual counts from results
+        results.forEach(({ workspaceId, count }) => {
+          updatedCounts.set(workspaceId, count);
+        });
+        setWorkspaceProjectCounts(updatedCounts);
       } else {
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const error = await response.json();
-          console.error('API error:', error);
-        } else {
-          const text = await response.text();
-          console.error('API error (non-JSON):', text.substring(0, 200));
-        }
+        // If no API URL found, set all counts to 0
+        const zeroCounts = new Map<number, number>();
+        ws.forEach((workspace: any) => {
+          zeroCounts.set(workspace.id, 0);
+        });
+        setWorkspaceProjectCounts(zeroCounts);
       }
     } catch (error) {
       console.error('Error loading workspaces:', error);
@@ -177,6 +334,10 @@ function App() {
   };
 
   const updateGitBranches = async () => {
+    if (projects.length === 0) {
+      return; // No projects to update
+    }
+    
     try {
       const branches = new Map<number, string | null>();
       // Try common API ports
@@ -197,6 +358,7 @@ function App() {
       }
       
       if (!apiBaseUrl) {
+        console.warn('No API server found for git branches');
         // If no API found, set all to null
         for (const project of projects) {
           branches.set(project.id, null);
@@ -205,19 +367,29 @@ function App() {
         return;
       }
       
-      for (const project of projects) {
+      // Update branches for all projects in parallel
+      const branchPromises = projects.map(async (project) => {
         try {
-          const response = await fetch(`${apiBaseUrl}/projects/${project.id}/git-branch`);
+          const response = await fetch(`${apiBaseUrl}/projects/${project.id}/git-branch`, {
+            signal: AbortSignal.timeout(2000),
+          });
           if (response.ok) {
             const data = await response.json();
-            branches.set(project.id, data.branch);
+            return { projectId: project.id, branch: data.branch };
           } else {
-            branches.set(project.id, null);
+            return { projectId: project.id, branch: null };
           }
-        } catch {
-          branches.set(project.id, null);
+        } catch (error) {
+          console.warn(`Failed to get git branch for project ${project.id}:`, error);
+          return { projectId: project.id, branch: null };
         }
-      }
+      });
+      
+      const results = await Promise.all(branchPromises);
+      results.forEach(({ projectId, branch }) => {
+        branches.set(projectId, branch);
+      });
+      
       setGitBranches(branches);
     } catch (error) {
       console.error('Error updating git branches:', error);
@@ -341,6 +513,10 @@ function App() {
           return b.name.localeCompare(a.name);
         case 'recent':
           return (b.id || 0) - (a.id || 0); // Assuming higher ID = more recent
+        case 'recently-opened':
+          const aOpened = a.last_opened || 0;
+          const bOpened = b.last_opened || 0;
+          return bOpened - aOpened; // Most recently opened first
         case 'projects':
           const aCount = workspaceProjectCounts.get(a.id) || 0;
           const bCount = workspaceProjectCounts.get(b.id) || 0;
@@ -434,39 +610,60 @@ function App() {
     setTerminalProcess(null);
   };
 
+  const handleTerminalProjectClick = () => {
+    if (terminalProcess) {
+      // Find the project by name
+      const project = projects.find(p => p.name === terminalProcess.projectName);
+      if (project) {
+        setSelectedProject(project);
+        setActiveTab('projects'); // Switch to projects tab if not already there
+      }
+    }
+  };
+
+  // Show loading screen while API server is starting or workspaces are loading
+  if (!apiReady || (activeTab === 'workspaces' && loadingWorkspaces)) {
+    return (
+      <div className="app">
+        <div className="api-loading-screen">
+          <div className="api-loading-content">
+            <div className="spinner-large"></div>
+            <h2>PROJAX</h2>
+            <p>{!apiReady ? apiReadyMessage : 'Loading workspaces...'}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
-      <Titlebar>
+      <Titlebar
+        tabBar={<TabBar activeTab={activeTab} onTabChange={setActiveTab} showSettings={showSettings} onCloseSettings={() => setShowSettings(false)} />}
+      >
         <div className="header-actions">
           <button
             type="button"
             onClick={() => setShowSettings(true)}
-            className="btn-link"
+            className={`btn-link settings-button ${showSettings ? 'active' : ''}`}
             title="Settings"
           >
             Settings
           </button>
-          {activeTab === 'projects' ? (
-            <button
-              type="button"
-              onClick={() => setShowAddModal(true)}
-              className="btn-link btn-link-primary"
-            >
-              + Add Project
-            </button>
-          ) : (
+          {activeTab === 'workspaces' && (
             <button
               type="button"
               onClick={() => setShowAddWorkspaceModal(true)}
               className="btn-link btn-link-primary"
             >
-              + Add Workspace
+              Add Workspace
             </button>
           )}
         </div>
       </Titlebar>
 
       <div className="app-content">
+        {!showSettings && (
         <Rnd
           size={{ width: sidebarWidth, height: '100%' }}
           minWidth={200}
@@ -492,7 +689,6 @@ function App() {
           }}
         >
           <aside className="sidebar" style={{ width: '100%', height: '100%' }}>
-            <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
             {activeTab === 'projects' ? (
               <>
                 <ProjectSearch 
@@ -537,10 +733,11 @@ function App() {
             )}
           </aside>
         </Rnd>
+        )}
 
-        <main className="main-content">
+        <main className="main-content" ref={mainContentRef}>
           {showSettings ? (
-            <Settings onClose={() => setShowSettings(false)} />
+            <SettingsPanel onClose={() => setShowSettings(false)} />
           ) : selectedProject ? (
             <ProjectDetails
               project={selectedProject}
@@ -554,6 +751,11 @@ function App() {
               onNavigateBack={activeTab === 'workspaces' && selectedWorkspace ? () => {
                 setSelectedProject(null);
               } : undefined}
+              onSelectWorkspace={(ws) => {
+                setActiveTab('workspaces');
+                setSelectedWorkspace(ws);
+                setSelectedProject(null);
+              }}
             />
           ) : activeTab === 'workspaces' && selectedWorkspace ? (
             <WorkspaceDetails
@@ -659,6 +861,7 @@ function App() {
               scriptName={terminalProcess.scriptName}
               projectName={terminalProcess.projectName}
               onClose={handleCloseTerminal}
+              onProjectClick={handleTerminalProjectClick}
             />
           </div>
         )}
