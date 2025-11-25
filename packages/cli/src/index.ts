@@ -2063,7 +2063,7 @@ workspaceCmd
       await ensureAPIServerRunning(true);
       const response = await fetch('http://localhost:3001/api/workspaces');
       if (!response.ok) throw new Error('Failed to fetch workspaces');
-      const workspaces = await response.json();
+      const workspaces = await response.json() as any[];
       if (workspaces.length === 0) {
         console.log('No workspaces tracked yet.');
         return;
@@ -2099,10 +2099,10 @@ workspaceCmd
         body: JSON.stringify({ workspace_file_path: resolvedPath }),
       });
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json() as any;
         throw new Error(error.error || 'Failed to import workspace');
       }
-      const workspace = await response.json();
+      const workspace = await response.json() as any;
       console.log(`✓ Imported workspace: ${workspace.name}`);
     } catch (error) {
       console.error('Error importing workspace:', error instanceof Error ? error.message : error);
@@ -2131,10 +2131,10 @@ workspaceCmd
         }),
       });
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json() as any;
         throw new Error(error.error || 'Failed to create workspace');
       }
-      const workspace = await response.json();
+      const workspace = await response.json() as any;
       console.log(`✓ Created workspace: ${workspace.name}`);
       console.log(`  File: ${workspace.workspace_file_path}`);
     } catch (error) {
@@ -2153,7 +2153,7 @@ workspaceCmd
       await ensureAPIServerRunning(true);
       const response = await fetch('http://localhost:3001/api/workspaces');
       if (!response.ok) throw new Error('Failed to fetch workspaces');
-      const workspaces = await response.json();
+      const workspaces = await response.json() as any[];
       const workspace = workspaces.find((w: any) => 
         w.id.toString() === identifier || w.name === identifier
       );
@@ -2194,7 +2194,7 @@ workspaceCmd
       await ensureAPIServerRunning(true);
       const response = await fetch('http://localhost:3001/api/workspaces');
       if (!response.ok) throw new Error('Failed to fetch workspaces');
-      const workspaces = await response.json();
+      const workspaces = await response.json() as any[];
       const workspace = workspaces.find((w: any) => 
         w.id.toString() === identifier || w.name === identifier
       );
@@ -2253,10 +2253,10 @@ program
         body: JSON.stringify({ output_path: targetPath }),
       });
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json() as any;
         throw new Error(error.error || 'Failed to create backup');
       }
-      const result = await response.json();
+      const result = await response.json() as any;
       console.log(`✓ Backup created: ${result.backup_path}`);
     } catch (error) {
       console.error('Error creating backup:', error instanceof Error ? error.message : error);
@@ -2296,7 +2296,7 @@ program
         body: JSON.stringify({ backup_path: resolvedPath }),
       });
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json() as any;
         throw new Error(error.error || 'Failed to restore backup');
       }
       console.log('✓ Backup restored successfully');
