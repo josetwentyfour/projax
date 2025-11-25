@@ -1,1 +1,0 @@
-"use strict";(globalThis.webpackChunk_projax_docsite=globalThis.webpackChunk_projax_docsite||[]).push([[6532],{4061:s=>{s.exports=JSON.parse('{"name":"docusaurus-plugin-content-pages","id":"default"}')}}]);
