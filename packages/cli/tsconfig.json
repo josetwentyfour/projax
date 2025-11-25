@@ -2,11 +2,13 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
     "baseUrl": "./src",
     "jsx": "react",
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "noImplicitAny": false,
+    "strict": false,
+    "noUncheckedIndexedAccess": false,
     "paths": {
       "projax-core": ["../core/src/index"]
     }

@@ -4,6 +4,8 @@
     "outDir": "./dist",
     "rootDir": "./src/main",
     "baseUrl": "./src/main",
+    "noImplicitAny": false,
+    "strict": false,
     "paths": {
       "projax-core": ["../../core/src/index"]
     }

@@ -1259,7 +1259,7 @@ ipcMain.handle('get-workspaces', async () => {
         try {
           const response = await fetch(`${apiBaseUrl}/workspaces`);
           if (response.ok) {
-            const workspaces = await response.json();
+            const workspaces = await response.json() as any;
             console.log(`[main] Fetched ${workspaces.length} workspace(s) from API.`);
             return workspaces;
           }

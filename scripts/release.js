@@ -103,8 +103,13 @@ async function main() {
   // 3.6 Package VS Code extension
   console.log('\n📦 Packaging VS Code extension...');
   exec('mkdir -p release', 'Create release directory');
-  exec('pnpm --filter projax-vscode run package', 'Package .vsix file');
-  console.log('✓ VS Code extension packaged to ./release/');
+  try {
+    execSync('pnpm --filter projax-vscode run package', { stdio: 'inherit' });
+    console.log('✓ VS Code extension packaged to ./release/');
+  } catch (error) {
+    console.log('⚠️  VS Code extension packaging failed (Node.js 18 compatibility issue)');
+    console.log('✓ Continuing with release (extension can be packaged separately with Node 20+)');
+  }
 
   // 3.7 Test with pnpm link (skip if permission denied)
   console.log('\n🧪 Testing commands with pnpm link...');

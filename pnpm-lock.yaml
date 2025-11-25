@@ -26,6 +26,9 @@ importers:
       express:
         specifier: ^4.18.2
         version: 4.18.2
+      projax-core:
+        specifier: workspace:*
+        version: link:../core
     optionalDependencies:
       better-sqlite3:
         specifier: ^9.2.2
@@ -88,6 +91,9 @@ importers:
       inquirer:
         specifier: ^9.2.12
         version: 9.2.12
+      projax-core:
+        specifier: workspace:*
+        version: link:../core
       react:
         specifier: ^17.0.2
         version: 17.0.2
@@ -146,6 +152,9 @@ importers:
       electron:
         specifier: ^28.0.0
         version: 28.0.0
+      projax-core:
+        specifier: workspace:*
+        version: link:../core
       react-rnd:
         specifier: ^10.5.2
         version: 10.5.2(react-dom@18.2.0)(react@18.2.0)

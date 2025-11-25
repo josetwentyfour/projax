@@ -470,7 +470,7 @@ router.post('/:id/sync-from-file', async (req, res) => {
 
     // Parse workspace file to get current projects
     const parsed = parseWorkspaceFile(workspace.workspace_file_path);
-    const fileProjectPaths = parsed.folders.map(f => {
+    const fileProjectPaths = parsed.folders.map((f: { path: string }) => {
       // Resolve to absolute path and normalize (same as database normalization)
       const absolutePath = path.isAbsolute(f.path) ? f.path : path.resolve(process.cwd(), f.path);
       return normalizePath(absolutePath);
